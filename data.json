@@ -1,0 +1,17 @@
+{
+    "nodes": ["A", "B", "C", "D"],
+    "activators": {
+        "A": ["B", "D"], 
+        "B": ["A"],
+        "C": [],
+        "D": ["B"]
+    },
+    "inhibitors": {
+        "A": ["A", "D"],
+        "B": [],
+        "C": ["A"],
+        "D": ["C"]
+    },
+    "attractors": ["0000", "1111"],
+    "n_simulations": 300  
+}

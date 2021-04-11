@@ -1,0 +1,213 @@
+
+# Libraries
+import random
+import itertools
+from utils import ncbf_generator
+
+
+# Classes
+class Graph:
+
+    # Methods
+    def __init__(self, nodes, activators, inhibitors, attractors, n_simulations):
+        """
+        DESCRIPTION:
+        The constructor of the Graph object. All the network inference
+        is based on this object.
+        :param nodes: [list] strings that represent the nodes that build the 
+        graph.
+        :param activators: [dict] dict in which the keys are the nodes, and the
+        values their activators.
+        :param inhibitors: [dict] the same but for the inhibitors.
+        :param attractors: [list] the attractors (strings) that the searched 
+        boolean networks should manifest.
+        :param n_simulations: [int] the number of times that every boolean 
+        network should be infered. It is exactly the number of priority matrices
+        computed.
+        """
+        # Always, the nodes are ordered alphabetically
+        self.nodes = tuple(sorted(nodes))
+        self.activators = {key: tuple(sorted(activators[key])) 
+            for key in activators.keys()}
+        self.inhibitors = {key: tuple(sorted(inhibitors[key])) 
+            for key in inhibitors.keys()}
+        self.searched_attractors = attractors
+        self.n_simulations = n_simulations
+        self.n_nodes = len(nodes)
+        # Generate all the possible minterms in a space of len(nodes) variables.
+        # IMPORTANT: the node position in every term is alphabetical: A:0, B:1...
+        self.graph_space = set('{:0{}b}'.format(i, self.n_nodes) 
+            for i in range(2 ** self.n_nodes))
+    
+    def obtain_pathways_from_graph(self):
+        """
+        DESCRIPTION:
+        The method to obtain all the possible groups of pathways from the graph 
+        based on the pairs of canalising/canalised values described in the 
+        article. The groups are added to the Graph object. Every pathway is a 
+        tuple in which the fields have the following meaning:
+        1. Antecedent: [str] the row key to obtain the priority in the 
+        matrix.
+        2. Consequent: [str] the column key to obtain the priority in the 
+        matrix.
+        3. Activator: [bool] a flag to indicate if the pathway is an activator 
+        of the consequent (True) or not (False).
+        4. Domain: [set] strings that represent the minterms of the expression
+        present in the left side of the pathway. The right side is always
+        exactly the letter shown in the consequent field, there is no need to 
+        represent that function.
+        """
+        # Helper functions
+        def pathway_serializer(antecedent, consequent, definition):
+            """
+            DESCRIPTION: 
+            Helper function for the list comprehension of below. 
+            :param antecedent: [str] value to write in the left side of the 
+            pathway.
+            :param consequent: [str] value to write in the right side of the 
+            pathway.
+            :param definition: [tuple] canalising/canalised value pair of the 
+            pathway.
+            :return: [dict] formatted pathway.
+            """
+            return {'antecedent': antecedent,
+                    'consequent': consequent,
+                    'activator': bool(definition[1]),
+                    'domain': set(filter(
+                        lambda term: term[self.nodes.index(antecedent)] == str(definition[0]),
+                        self.graph_space))}
+        
+        def pathway_manager(pathway_group):
+            """
+            DESCRIPTION:
+            Helper function to organise the pathways first by node and after
+            by activators and inhibitors. In the code, every activator will have
+            a canalised value of 1 and vice versa.
+            :param pathway_group: [tuple] the two lists of activators and 
+            inhibitors.
+            :return: [dict] the pathways grouped by node and activators/inhibitors.
+            """
+            pathways = [it for sb in pathway_group for it in sb]
+            pathways = {node: {'activators': list(filter(lambda pathway: (pathway['consequent'] == node) and pathway['activator'], pathways)),
+                                'inhibitors': list(filter(lambda pathway: (pathway['consequent'] == node) and not pathway['activator'], pathways))}
+                for node in self.nodes}
+            return pathways
+        
+        # Create all the pathways with both canalising/canalised pairs
+        activator_pathways = [[None for activator in self.activators[node]] for node in self.nodes]
+        inhibitor_pathways = [[None for inhibitor in self.inhibitors[node]] for node in self.nodes]
+        i = 0
+        for node in self.nodes:
+            j = 0
+            for activator in self.activators[node]:
+                activator_pathways[i][j] = [
+                    pathway_serializer(activator, node, (0, 0)),
+                    pathway_serializer(activator, node, (1, 1))
+                ]
+                j += 1
+            j = 0
+            for inhibitor in self.inhibitors[node]:
+                inhibitor_pathways[i][j] = [
+                    pathway_serializer(inhibitor, node, (0, 1)),
+                    pathway_serializer(inhibitor, node, (1, 0))
+                ]
+                j += 1
+            i += 1
+        activator_pathways = [it for sb in activator_pathways for it in sb]
+        activator_pathways = itertools.product(*activator_pathways)
+        inhibitor_pathways = [it for sb in inhibitor_pathways for it in sb]
+        inhibitor_pathways = itertools.product(*inhibitor_pathways)
+        pathways = itertools.product(activator_pathways, inhibitor_pathways)
+        # Organise every group by node first and by activator/inhibitor second
+        self.pathway_groups = [pathway_manager(group) for group in pathways]
+
+    def generate_priority_matrices(self):
+        """
+        DESCRIPTION:
+        A method that adds to the Graph object the piority matrices used in the 
+        inference. There two priority matrices per simulation, one for activators
+        and another for inhibitors.
+        """
+        # Obtain all the possible node combinations
+        combinations = [itertools.combinations(self.nodes, i + 1)
+            for i in range(self.n_nodes)]
+        combinations = sorted([''.join(it) for sb in combinations for it in sb])
+        # Generate all the possible priorities
+        priorities = range(0, 1000)
+        # Activators
+        activator_matrices = []
+        for _ in range(self.n_simulations):
+            # Generate the random matrices
+            activator_matrices.append({
+                key: dict(zip(combinations, random.sample(priorities, len(combinations)))) 
+                for key in combinations
+                })
+        # Inhibitors
+        inhibitor_matrices = []
+        for _ in range(self.n_simulations):
+            # Generate the random matrices
+            inhibitor_matrices.append({
+                key: dict(zip(combinations, random.sample(priorities, len(combinations)))) 
+                for key in combinations
+                })
+        # Store the matrices
+        self.priority_matrices = zip(activator_matrices, inhibitor_matrices)
+    
+    def generate_NCBFs(self):
+        """
+        DESCRIPTION:
+        A method to build all the groups of NCBF based on the pathway groups. 
+        Multiple NCBF groups are built per pathway group. The information about the 
+        canalising/canalised pairs is already stored in the pathways. The NCBF
+        groups are added to the Graph object.
+        """
+        # Helper function
+        def ncbf_formatter(ncbf_group, pathway_group_id):
+            networks = [dict(zip(self.nodes, network))
+                for network in itertools.product(*ncbf_group)]
+            return zip([pathway_group_id] * len(networks), networks)
+
+        # Generate by node all the NCBFs
+        total_ncbf = [[ncbf_generator(group[node]['activators'], group[node]['inhibitors'], self.graph_space) 
+            for node in self.nodes] for group in self.pathway_groups]
+        # Format all the NCBF groups conveniently: (pathway group position, NCBF
+        # network in dict). 
+        self.pre_networks = [it for sb in [ncbf_formatter(total_ncbf[i], i) for i in range(len(total_ncbf))] for it in sb]
+
+    def generate_boolean_networks(self):
+        """
+        DESCRIPTION:
+        A method to build all the boolean networks (BN), and store them in a 
+        list within the Graph object. To process them independently, the BN are
+        dicts formated with the following fields: 
+        - priority_matrix: [dict] the random matrices that represent the priority
+        between expressions.
+        - pre_pathways: [tuple] the initial group of pathways. It is stored to 
+        check the result at the end.
+        - pre_network: [dict] frozensets with strings that represent the minterms
+        of the node expressions. Every key is a different node.
+        - network: [dict] the mutable version with sets of the pre_network. The
+        network is where the inference takes place.
+        - conflicts: [list] the conflicts, in order, handled during the inference.
+        The conflicts are introduced in the list in order of appearance.   
+        """
+        # Helper functions
+        def boolean_network_serializer(group):
+            """
+            DESCRIPTION:
+            A function designed specifically to transle the output of the product
+            from below into a dict with significant fields.
+            """
+            return {
+                'priority': {'activators': group[0][0], 'inhibitors': group[0][1]},
+                'pre_pathways': pathways[group[1][0]],
+                'pre_network': group[1][1]
+            }
+
+        # Create all the groups of simulations, NCBFs and pathways
+        pathways = self.pathway_groups
+        boolean_networks = itertools.product(self.priority_matrices, self.pre_networks)
+        # Format the networks and store
+        self.boolean_networks = list(map(boolean_network_serializer, boolean_networks))
+        print()
+    
