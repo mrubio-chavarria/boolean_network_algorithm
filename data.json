@@ -13,5 +13,7 @@
         "D": ["C"]
     },
     "attractors": ["0000", "1111"],
-    "n_simulations": 300  
+    "n_simulations": 1,
+    "multiprocess": true,
+    "n_free_cores": 3  
 }

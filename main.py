@@ -20,6 +20,10 @@ def main():
     graph.generate_priority_matrices()
     graph.generate_NCBFs()
     graph.generate_boolean_networks()
+    print('Solve the conflicts of all the networks')
+    graph.solve_conflicts(max_iterations=10)
+    print('Filter the resulting networks')
+    graph.filter_boolean_networks()
     # # Parse the graph
     # parsed_graph = graph_parser(graph)
     # # Create all the possible NCBF functions by node

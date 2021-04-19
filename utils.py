@@ -316,7 +316,7 @@ def ncbf_obtain_domain(structure, info, space, first=False):
         domain_downwards_layers = ncbf_obtain_domain(structure[1::], info, space)
         domain = domain_current_layer & domain_downwards_layers
         domain = space - domain if (first and info[structure[0][0]][1]) else domain
-        return domain
+        return frozenset(domain)
 
 
 def ncbf_generator(activators, inhibitors, space):
