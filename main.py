@@ -1,9 +1,9 @@
 #!/home/mario/Projects/boolean_2/software/venv/bin/venv python
 
 # Libraries
-from graph import Graph
 import json
-
+from pytictoc import TicToc
+from graph import Graph
 
 
 # Functions
@@ -15,6 +15,8 @@ def main():
     # Read problem information
     data = json.load(open("data.json"))
     # Create the object graph
+    t = TicToc()
+    t.tic()
     graph = Graph(**data)
     graph.obtain_pathways_from_graph()
     graph.generate_priority_matrices()
@@ -22,8 +24,10 @@ def main():
     graph.generate_boolean_networks()
     print('Solve the conflicts of all the networks')
     graph.solve_conflicts(max_iterations=10)
+    t.toc()
     print('Filter the resulting networks')
     graph.filter_boolean_networks()
+    print()
     # # Parse the graph
     # parsed_graph = graph_parser(graph)
     # # Create all the possible NCBF functions by node

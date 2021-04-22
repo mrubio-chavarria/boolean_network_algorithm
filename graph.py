@@ -1,18 +1,20 @@
+#!/home/mario/Projects/boolean_2/software/venv/bin/venv python
 
 # Libraries
-import random
 import itertools
-import tqdm
-from utils import ncbf_generator
-from random import choice
+from random import choice, sample
+from functools import partial
+from multiprocessing import Pool, cpu_count
+from string import ascii_uppercase, digits
 from sympy.logic import SOPform
 from sympy import symbols
-from pytictoc import TicToc
-from multiprocessing import Pool, cpu_count
+import tqdm
+from uuid import uuid1
+from ncbf_utils import ncbf_generator
+from bn_utils import conflicts_solver
 # Classes taken from: https://github.com/zhcHoward/Kmap
 from Kmap.Kmap import Minterms
 from Kmap.utils import Term
-
 
 
 # Classes
@@ -86,12 +88,14 @@ class Graph:
             pathway.
             :return: [dict] formatted pathway.
             """
-            return {'antecedent': antecedent,
-                    'consequent': consequent,
-                    'activator': bool(definition[1]),
-                    'domain': frozenset(filter(
-                        lambda term: term[self.nodes.index(antecedent)] == str(definition[0]),
-                        self.graph_space))}
+            return {
+                'id': ''.join(sample(ascii_uppercase + digits, 4)),
+                'antecedent': antecedent,
+                'consequent': consequent,
+                'activator': bool(definition[1]),
+                'domain': frozenset(filter(
+                    lambda term: term[self.nodes.index(antecedent)] == str(definition[0]),
+                    self.graph_space))}
         
         def pathway_manager(pathway_group):
             """
@@ -155,7 +159,7 @@ class Graph:
         for _ in range(self.n_simulations):
             # Generate the random matrices
             activator_matrices.append({
-                key: dict(zip(combinations, random.sample(priorities, len(combinations)))) 
+                key: dict(zip(combinations, sample(priorities, len(combinations)))) 
                 for key in combinations
                 })
         # Inhibitors
@@ -163,7 +167,7 @@ class Graph:
         for _ in range(self.n_simulations):
             # Generate the random matrices
             inhibitor_matrices.append({
-                key: dict(zip(combinations, random.sample(priorities, len(combinations)))) 
+                key: dict(zip(combinations, sample(priorities, len(combinations)))) 
                 for key in combinations
                 })
         # Store the matrices
@@ -212,17 +216,21 @@ class Graph:
             """
             DESCRIPTION:
             A function designed specifically to transle the output of the product
-            from below into a dict with significant fields.
+            from below into a dict with significant fields. The group is a tuple 
+            of tuples. The first tuple is the priority matrices, the second are 
+            the group of pathways to take and the network.
             """
             return {
                 'priority': {'activators': group[0][0], 'inhibitors': group[0][1]},
                 'pre_pathways': pathways[group[1][0]],
-                'pre_network': group[1][1]
+                'pre_network': group[1][1],
+                # An empty field to store the conflicts during the inference
+                'conflicts': []
             }
 
         # Create all the groups of simulations, NCBFs and pathways
         pathways = self.pathway_groups
-        boolean_networks = itertools.product(self.priority_matrices, self.pre_networks)
+        boolean_networks = list(itertools.product(self.priority_matrices, self.pre_networks))
         # Format the networks and store
         self.boolean_networks = list(map(boolean_network_serializer, boolean_networks))
     
@@ -238,163 +246,25 @@ class Graph:
         """
         # Solve the conflicts of every network
         if self.multiprocess:
+            # Multiprocess solution
             with Pool(self.used_cores) as p:
-                self.boolean_networks = p.map(self.conflicts_solver, self.boolean_networks)
+                # Introduce the arguments shared by all the networks
+                multi_conflicts_solver = partial(
+                    # Function to partially call
+                    conflicts_solver,
+                    # Arguments passed to the function
+                    graph_space=self.graph_space,
+                    nodes=self.nodes,
+                    max_iterations=max_iterations
+                )
+                # Launch the inference for every network
+                self.boolean_networks = p.map(multi_conflicts_solver, self.boolean_networks[0:1000])
         else:
-            self.boolean_networks = [self.conflicts_solver(network) for network in self.boolean_networks]
-
-    def conflicts_solver(self, network, max_iterations=10):
-        """
-        DESCRIPTION:
-        The method to solve the conflicts of a given network. It just modified the
-        network according to the conflicts solving.
-        :param network: [dict] all the information needed to compute the inference
-        of a network.
-        :param max_iterations: [int] maximum number of iterations around the 
-        nodes to solve the conflicts in a given network.
-        """
-        # Helper functions
-        def function_simplifier(node, nodes, terms, method='SymPy'):
-            """
-            DESCRIPTION:
-            A function to simplify the terms of a given boolean function.
-            :param node: [str] node that denotes the boolean function that we
-            are simplifying.
-            :param nodes: [list] variables of the function to simplify.
-            :param terms: [frozenset] strings the represent the terms.
-            :param method: [str] variable to indicate the simplification method to
-            use.
-            :return: [list] minterms of the simplfied function.
-            """
-            if method == 'zhcHoward':
-                # Method taken from https://github.com/zhcHoward/Kmap
-                target_terms = [Term(term) for term in self.graph_space - network['network'][node]]
-                minterms = Minterms(target_terms)
-                minterms.simplify()
-                results = minterms.result
-            elif method == 'SymPy':
-                terms = [[int(digit) for digit in list(term)] for term in terms]
-                simplified = str(SOPform(nodes, terms))
-                terms = [
-                    term.replace('(', '').replace(')', '').replace(' ', '').split('&')
-                    for term in simplified.split('|')
-                ]
-                results = []
-                for term in terms:
-                    result = dict(zip(nodes, ['*'] * self.n_nodes))
-                    for factor in term:
-                        result[factor.replace('~', '')] = '0' if '~' in factor else '1'
-                    results.append(''.join(result.values()))  
-            else:
-                raise AttributeError
-            return results
-
-        def solver(activator, inhibitor):
-            """
-            DESCRIPTION:
-            A helper function that will just solve the conflicts between the pathways
-            of a given pair.
-            :param activator: [dict] pathway that provokes a 1 in the consequent.
-            :param inhibitor: [dict] pathway that provokes a 0 in the consequent.
-            :return: [list] new pathways obtained from the inference (same format as
-            the others).
-            """
-            # Detect the conflicting region (psi)
-            psi = activator['domain'] & inhibitor['domain']
-            # Obtain the priority
-            activator_priority = network['priority']['activators'][activator['antecedent']][activator['consequent']]
-            inhibitor_priority = network['priority']['inhibitors'][inhibitor['antecedent']][inhibitor['consequent']]
-            if activator_priority >= inhibitor_priority:
-                # Prioritised: activator
-                # Non prioritised: inhibitor
-                # Modify the non-prioritised pathway
-                inhibitor['antecedent'] = ''.join(sorted(set(activator['antecedent'] + inhibitor['antecedent'])))
-                inhibitor['domain'] = inhibitor['domain'] - activator['domain']
-                # Modify the consequent node function
-                network['network'][activator['consequent']] = (network['network'][activator['consequent']] | activator['domain']) - inhibitor['domain']
-                # Obtain the solution pathway
-                simplified_minterms = function_simplifier(activator['consequent'], network['network'].keys(), network['network'][activator['consequent']])
-                # It is just needed to meet the condition imposed by one term
-                # but there is a new pathway per node obtained in the solution
-                target_nodes = [(node, bool(int(canalised_value))) for node, canalised_value in zip(network['network'].keys(), list(str(choice(simplified_minterms)))) if canalised_value != '*']
-                # Generate the solution pathway
-                solution_pathways = [
-                    {'antecedent': inhibitor['antecedent'], 'consequent': node, 'activator': canalised_value, 'domain': psi}
-                    for node, canalised_value in target_nodes
-                ]
-            else:
-                # Prioritised: inhibitor
-                # Non prioritised: activator
-                # Modify the non-prioritised pathway
-                activator['antecedent'] = ''.join(sorted(set(activator['antecedent'] + inhibitor['antecedent'])))
-                activator['domain'] = activator['domain'] - inhibitor['domain']
-                # Modify the consequent node function
-                network['network'][activator['consequent']] = (network['network'][activator['consequent']] | activator['domain']) - inhibitor['domain']
-                # Obtain the solution pathway
-                simplified_minterms = function_simplifier(activator['consequent'], network['network'].keys(), network['network'][activator['consequent']])
-                # It is just needed to meet the condition imposed by one term
-                # but there is a new pathway per node obtained in the solution
-                target_nodes = [(node, bool(int(canalised_value))) for node, canalised_value in zip(network['network'].keys(), list(str(choice(simplified_minterms)))) if canalised_value != '*']
-                # Generate the solution pathway
-                solution_pathways = [
-                    {'antecedent': activator['antecedent'], 'consequent': node, 'activator': canalised_value, 'domain': psi}
-                    for node, canalised_value in target_nodes
-                ]
-            return solution_pathways
-
-        # Create network and pathways
-        network['network'] = dict(network['pre_network'])
-        network['pathways'] = {
-            node: {
-            'activators': [dict(pathway) for pathway in network['pre_pathways'][node]['activators']],
-            'inhibitors': [dict(pathway) for pathway in network['pre_pathways'][node]['inhibitors']]
-            }
-            for node in self.nodes
-        }
-        # Solve the conflicts
-        # Divide the pathways in those checked and non-checked. If needed, probably
-        # this could be improved
-        pathways = {
-            'non_checked': network['pathways'],
-            'checked': {node: {'activators': [], 'inhibitors': []} for node in self.nodes}
-        }
-        # Iterate a maximum of times
-        iteration = 0
-        node_conditions = {node: False for node in self.nodes}
-        while iteration < max_iterations:
-            # Go through all the nodes
-            for node in self.nodes:
-                # Obtain all the possible pathway pairs
-                pair_group1 = list(itertools.product(pathways['non_checked'][node]['activators'],
-                                                pathways['non_checked'][node]['inhibitors']))
-                pair_group2 = list(itertools.product(pathways['non_checked'][node]['activators'],
-                                                pathways['checked'][node]['inhibitors']))
-                pair_group3 = list(itertools.product(pathways['checked'][node]['activators'],
-                                                pathways['non_checked'][node]['inhibitors']))
-                # Change checked by non-checked
-                [pathways['checked'][node]['activators'].extend(pathways['non_checked'][node]['activators'])
-                    for node in self.nodes]
-                [pathways['checked'][node]['inhibitors'].extend(pathways['non_checked'][node]['inhibitors'])
-                    for node in self.nodes]
-                # Solve all the pairs 
-                solution_pathways = [it for sb in [solver(*pair) for pair in pair_group1 + pair_group2 + pair_group3] for it in sb]
-                node_conditions[node] = not solution_pathways
-                # This assignment probably could be improved if needed
-                pathways['non_checked'] = {node: {
-                    'activators': list(filter(lambda pathway: (pathway['consequent'] == node) and pathway['activator'], solution_pathways)),
-                    'inhibitors': list(filter(lambda pathway: (pathway['consequent'] == node) and not pathway['activator'], solution_pathways))
-                    }
-                    for node in self.nodes}
-        # Update iteration
-            iteration += 1
-            # Assess break condition
-            if all(node_conditions.values()):
-                break
-        # Assess condition of max iterations
-        network['converge'] = all(node_conditions.values())
-        # Save new pathways
-        network['pathways'] = pathways['checked']
-        return network
+            # Single process solution
+            self.boolean_networks = [
+                conflicts_solver(network, self.graph_space, self.nodes, max_iterations)
+                for network in self.boolean_networks
+            ]
     
     def filter_boolean_networks(self):
         """
@@ -428,9 +298,11 @@ class Graph:
             return (network, sum(attractor_conditions))
 
         # Filters
-        # By attractor
-        networks_with_n_matched_attractors = map(attractor_kernel, self.boolean_networks)
-        by_attractor = {i: list(filter(lambda x: x[1] == i)) for i in range(len(self.searched_attractors) + 1)}
+        # Converging networks
+        converging_networks = list(filter(lambda x: x['converge'], self.boolean_networks))
+        # # By attractor
+        # networks_with_n_matched_attractors = map(attractor_kernel, self.boolean_networks)
+        # by_attractor = {i: list(filter(lambda x: x[1] == i)) for i in range(len(self.searched_attractors) + 1)}
         print()
 
         

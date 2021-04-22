@@ -14,6 +14,6 @@
     },
     "attractors": ["0000", "1111"],
     "n_simulations": 1,
-    "multiprocess": true,
+    "multiprocess": false,
     "n_free_cores": 3  
 }
