@@ -15,13 +15,14 @@ from bn_utils import conflicts_solver
 # Classes taken from: https://github.com/zhcHoward/Kmap
 from Kmap.Kmap import Minterms
 from Kmap.utils import Term
+from pytictoc import TicToc
 
 
 # Classes
 class Graph:
 
     # Methods
-    def __init__(self, nodes, activators, inhibitors, attractors, n_simulations, multiprocess, n_free_cores):
+    def __init__(self, nodes, activators, inhibitors, attractors, n_simulations, multiprocess, n_free_cores, max_iterations):
         """
         DESCRIPTION:
         The constructor of the Graph object. All the network inference
@@ -40,6 +41,8 @@ class Graph:
         should be done with multiple processes or not.
         :param n_free_cores: [int] for the multiprocessing, to specify how much 
         computer capacity wants the user to let free.
+        :param max_iterations: [int] maximum number of iterations around the 
+        nodes to solve the conflicts in every given network.
         """
         # Always, the nodes are ordered alphabetically
         self.nodes = tuple(sorted(nodes))
@@ -52,9 +55,10 @@ class Graph:
         self.n_nodes = len(nodes)
         self.multiprocess = multiprocess
         self.used_cores = cpu_count() - n_free_cores
+        self.max_iterations = max_iterations
         # Generate all the possible minterms in a space of len(nodes) variables.
         # IMPORTANT: the node position in every term is alphabetical: A:0, B:1...
-        self.graph_space = set('{:0{}b}'.format(i, self.n_nodes) 
+        self.graph_space = frozenset('{:0{}b}'.format(i, self.n_nodes) 
             for i in range(2 ** self.n_nodes))
     
     def obtain_pathways_from_graph(self):
@@ -183,8 +187,7 @@ class Graph:
         """
         # Helper function
         def ncbf_formatter(ncbf_group, pathway_group_id):
-            networks = [dict(zip(self.nodes, network))
-                for network in itertools.product(*ncbf_group)]
+            networks = [dict(zip(self.nodes, network)) for network in itertools.product(*ncbf_group)]
             return zip([pathway_group_id] * len(networks), networks)
 
         # Generate by node all the NCBFs
@@ -224,6 +227,9 @@ class Graph:
                 'priority': {'activators': group[0][0], 'inhibitors': group[0][1]},
                 'pre_pathways': pathways[group[1][0]],
                 'pre_network': group[1][1],
+                'max_iterations': int(self.max_iterations),
+                'graph_space': frozenset(self.graph_space),
+                'nodes': tuple(self.nodes),
                 # An empty field to store the conflicts during the inference
                 'conflicts': []
             }
@@ -234,37 +240,25 @@ class Graph:
         # Format the networks and store
         self.boolean_networks = list(map(boolean_network_serializer, boolean_networks))
     
-    def solve_conflicts(self, max_iterations=10):
+    def solve_conflicts(self):
         """
         DESCRIPTION:
         A method to solve all the conflicts in the obtained boolean functions. No
         object is going to be created, just the previous networks are going to be 
         modified. Therefore, we create a new function that will be applied through
         a list comprehension to every boolean function.
-        :param max_iterations: [int] maximum number of iterations around the 
-        nodes to solve the conflicts in a given network.
         """
         # Solve the conflicts of every network
         if self.multiprocess:
             # Multiprocess solution
             with Pool(self.used_cores) as p:
-                # Introduce the arguments shared by all the networks
-                multi_conflicts_solver = partial(
-                    # Function to partially call
-                    conflicts_solver,
-                    # Arguments passed to the function
-                    graph_space=self.graph_space,
-                    nodes=self.nodes,
-                    max_iterations=max_iterations
-                )
                 # Launch the inference for every network
-                self.boolean_networks = p.map(multi_conflicts_solver, self.boolean_networks[0:1000])
+                boolean_networks = self.boolean_networks
+                p.map(conflicts_solver, boolean_networks)
+            print()
         else:
             # Single process solution
-            self.boolean_networks = [
-                conflicts_solver(network, self.graph_space, self.nodes, max_iterations)
-                for network in self.boolean_networks
-            ]
+            list(map(conflicts_solver, self.boolean_networks))
     
     def filter_boolean_networks(self):
         """

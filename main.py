@@ -13,17 +13,17 @@ def main():
     Main method, the guideline to execute the inference.
     """
     # Read problem information
-    data = json.load(open("data.json"))
+    data = json.load(open('data.json'))
     # Create the object graph
     t = TicToc()
-    t.tic()
     graph = Graph(**data)
     graph.obtain_pathways_from_graph()
     graph.generate_priority_matrices()
     graph.generate_NCBFs()
     graph.generate_boolean_networks()
     print('Solve the conflicts of all the networks')
-    graph.solve_conflicts(max_iterations=10)
+    t.tic()
+    graph.solve_conflicts()
     t.toc()
     print('Filter the resulting networks')
     graph.filter_boolean_networks()

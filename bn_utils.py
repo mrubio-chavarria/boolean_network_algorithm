@@ -39,7 +39,7 @@ def function_simplifier(node, nodes, n_nodes, terms, method='SymPy'):
     return results
 
 
-def solver(activator, inhibitor, network):
+def solver(activator, inhibitor, network, graph_space):
     """
     DESCRIPTION:
     A helper function that will just solve the conflicts between the pathways
@@ -48,6 +48,8 @@ def solver(activator, inhibitor, network):
     :param inhibitor: [dict] pathway that provokes a 0 in the consequent.
     :param network: [dict] all the information of the network to solve the 
     conflicts.
+    :param graph_space: [set] all the terms that build the mathematical space
+    in which is developed.
     :return: [list] new pathways obtained from the inference (same format as
     the others).
     """
@@ -59,7 +61,12 @@ def solver(activator, inhibitor, network):
     # Obtain the priority
     activator_priority = network['priority']['activators'][activator['antecedent']][activator['consequent']]
     inhibitor_priority = network['priority']['inhibitors'][inhibitor['antecedent']][inhibitor['consequent']]
+    # Store the pathways before any modifications
+    stored_activator = str(activator)
+    stored_inhibitor = str(inhibitor)
+    # Compare the priority of both activator and inhibitor
     if activator_priority >= inhibitor_priority:
+        prioritised = 'activator'
         # Prioritised: activator
         # Non prioritised: inhibitor
         # Modify the non-prioritised pathway
@@ -68,7 +75,7 @@ def solver(activator, inhibitor, network):
         # Modify the consequent node function
         network['network'][activator['consequent']] = (network['network'][activator['consequent']] | activator['domain']) - inhibitor['domain']
         # Obtain the solution pathway
-        simplified_minterms = function_simplifier(activator['consequent'], network['network'].keys(), len(network['network'].keys()), network['network'][activator['consequent']])
+        simplified_minterms = function_simplifier(activator['consequent'], network['network'].keys(), len(network['network'].keys()), graph_space - network['network'][activator['consequent']])
         # It is just needed to meet the condition imposed by one term
         # but there is a new pathway per node obtained in the solution
         target_nodes = [(node, bool(int(canalised_value))) for node, canalised_value in zip(network['network'].keys(), list(str(choice(simplified_minterms)))) if canalised_value != '*']
@@ -79,6 +86,7 @@ def solver(activator, inhibitor, network):
             for node, canalised_value in target_nodes
         ]
     else:
+        prioritised = 'inhibitor'
         # Prioritised: inhibitor
         # Non prioritised: activator
         # Modify the non-prioritised pathway
@@ -100,23 +108,18 @@ def solver(activator, inhibitor, network):
     # Store the conflict with its solution. Store the string
     # to keep the current state of the pathways
     network['conflicts'].append(
-        {'activator': str(activator), 'inhibitor': str(inhibitor), 'solution': str(solution_pathways)}
+        {'activator': stored_activator, 'inhibitor': stored_inhibitor, 'solution': str(solution_pathways), 'prioritised': prioritised}
     )
     return solution_pathways
 
 
-def conflicts_solver(network, graph_space, nodes, max_iterations=10):
+def conflicts_solver(network):
     """
     DESCRIPTION:
     The function to solve the conflicts of a given network. It just modified the
     network according to the conflicts solving.
     :param network: [dict] all the information needed to compute the inference
     of a network.
-    :param graph_space: [set] all the terms that represent the minterms that 
-    build the space in which the functions are developed.
-    :param nodes: [list] all the nodes that build the network.
-    :param max_iterations: [int] maximum number of iterations around the 
-    nodes to solve the conflicts in a given network.
     """
     # Create network and pathways
     network['network'] = dict(network['pre_network'])
@@ -125,21 +128,21 @@ def conflicts_solver(network, graph_space, nodes, max_iterations=10):
         'activators': [dict(pathway) for pathway in network['pre_pathways'][node]['activators']],
         'inhibitors': [dict(pathway) for pathway in network['pre_pathways'][node]['inhibitors']]
         }
-        for node in nodes
+        for node in network['nodes']
     }
     # Solve the conflicts
     # Divide the pathways in those checked and non-checked. If needed, probably
     # this could be improved
     pathways = {
-        'non_checked': network['pathways'],
-        'checked': {node: {'activators': [], 'inhibitors': []} for node in nodes}
+        'non_checked': dict(network['pathways']),
+        'checked': {node: {'activators': [], 'inhibitors': []} for node in network['nodes']}
     }
     # Iterate a maximum of times
     iteration = 0
-    node_conditions = {node: False for node in nodes}
-    while iteration < max_iterations:
+    node_conditions = {node: False for node in network['nodes']}
+    while iteration < network['max_iterations']:
         # Go through all the nodes
-        for node in nodes:
+        for node in network['nodes']:
             # Obtain all the possible pathway pairs
             pair_group1 = list(itertools.product(pathways['non_checked'][node]['activators'],
                                                 pathways['non_checked'][node]['inhibitors']))
@@ -148,20 +151,21 @@ def conflicts_solver(network, graph_space, nodes, max_iterations=10):
             pair_group3 = list(itertools.product(pathways['checked'][node]['activators'],
                                                 pathways['non_checked'][node]['inhibitors']))
             # Change checked by non-checked
-            [pathways['checked'][node]['activators'].extend(pathways['non_checked'][node]['activators'])
-                for node in nodes]
-            [pathways['checked'][node]['inhibitors'].extend(pathways['non_checked'][node]['inhibitors'])
-                for node in nodes]
+            pathways['checked'][node]['activators'].extend(pathways['non_checked'][node]['activators'])
+            pathways['checked'][node]['inhibitors'].extend(pathways['non_checked'][node]['inhibitors'])
+            pathways['non_checked'][node] = {'activators': [], 'inhibitors': []}
             # Solve all the pairs 
             solution_pathways = [it for sb in 
-                [solver(pair[0], pair[1], network) for pair in pair_group1 + pair_group2 + pair_group3]
+                [solver(pair[0], pair[1], network, network['graph_space']) for pair in pair_group1 + pair_group2 + pair_group3]
                 for it in sb]
             node_conditions[node] = not solution_pathways
-            # This assignment probably could be improved if needed
+            # Introduce the new pathways with the previous ones
             pathways['non_checked'] = {node: {
-                'activators': list(filter(lambda pathway: (pathway['consequent'] == node) and pathway['activator'], solution_pathways)),
-                'inhibitors': list(filter(lambda pathway: (pathway['consequent'] == node) and not pathway['activator'], solution_pathways))
-                } for node in nodes}
+                'activators': pathways['non_checked'][node]['activators'] +
+                    list(filter(lambda pathway: (pathway['consequent'] == node) and pathway['activator'], solution_pathways)),
+                'inhibitors': pathways['non_checked'][node]['inhibitors'] +
+                    list(filter(lambda pathway: (pathway['consequent'] == node) and not pathway['activator'], solution_pathways))
+                } for node in network['nodes']}
         # Update iteration
         iteration += 1
         # Assess break condition
@@ -171,4 +175,12 @@ def conflicts_solver(network, graph_space, nodes, max_iterations=10):
     network['converge'] = all(node_conditions.values())
     # Save new pathways
     network['pathways'] = pathways['checked']
-    return network
+    # Impose all the pathways in the network
+    for node in network['nodes']:
+        # Activators
+        for pathway in network['pathways'][node]['activators']:
+            network['network'][node] = network['network'][node] | pathway['domain']
+        # Inhibitors
+        for pathway in network['pathways'][node]['inhibitors']:
+            network['network'][node] = network['network'][node] - pathway['domain']
+
