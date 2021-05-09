@@ -5,10 +5,28 @@ import itertools
 from random import choice, sample
 from string import ascii_uppercase, digits
 from sympy import SOPform
+from PyBoolNet.Attractors import compute_attractors_tarjan
+from PyBoolNet.FileExchange import bnet2primes
+from PyBoolNet.StateTransitionGraphs import primes2stg
+from quine_mccluskey.qm import QuineMcCluskey
+from pytictoc import TicToc
+from exceptions import NoSolutionException
 
 
 # Functions
-def function_simplifier(node, nodes, n_nodes, terms, method='SymPy'):
+def left_zfill(word, n_digits):
+    """
+    DESCRIPTION:
+    Given a string a number, the function introduces zeros by the left side 
+    until the string the size specified in the number.
+    :param word: [string] the string that is to be extended. 
+    :param n_digits: [int] the number of digits of the final word. 
+    :return: [string] extended word. 
+    """
+    return '0' * (n_digits - len(word)) + word
+    
+
+def function_simplifier(node, nodes, n_nodes, terms, method='Quine-McCluskey'):
     """
     DESCRIPTION:
     A function to simplify the terms of a given boolean function.
@@ -21,7 +39,14 @@ def function_simplifier(node, nodes, n_nodes, terms, method='SymPy'):
     use.
     :return: [list] minterms of the simplfied function.
     """
-    if method == 'SymPy':
+    if not terms:
+        raise NoSolutionException()
+    if method == 'Quine-McCluskey':
+        # Handle the general case
+        qm = QuineMcCluskey(use_xor=False)
+        results = [left_zfill(minterm.replace('-', '*'), n_nodes) for minterm
+            in qm.simplify([int(term, 2) for term in terms])]
+    elif method == 'SymPy':
         terms = [[int(digit) for digit in list(term)] for term in terms]
         simplified = str(SOPform(nodes, terms))
         terms = [
@@ -154,10 +179,16 @@ def conflicts_solver(network):
             pathways['checked'][node]['activators'].extend(pathways['non_checked'][node]['activators'])
             pathways['checked'][node]['inhibitors'].extend(pathways['non_checked'][node]['inhibitors'])
             pathways['non_checked'][node] = {'activators': [], 'inhibitors': []}
-            # Solve all the pairs 
-            solution_pathways = [it for sb in 
-                [solver(pair[0], pair[1], network, network['graph_space']) for pair in pair_group1 + pair_group2 + pair_group3]
-                for it in sb]
+            # Solve all the pairs
+            try: 
+                solution_pathways = [it for sb in 
+                    [solver(pair[0], pair[1], network, network['graph_space']) for pair in pair_group1 + pair_group2 + pair_group3]
+                    for it in sb]
+            except NoSolutionException:
+                # Case in which a pathway could not be solved. There is no solution
+                return None
+            except:
+                print()
             node_conditions[node] = not solution_pathways
             # Introduce the new pathways with the previous ones
             pathways['non_checked'] = {node: {
@@ -171,16 +202,143 @@ def conflicts_solver(network):
         # Assess break condition
         if all(node_conditions.values()):
             break
-    # Assess condition of max iterations
-    network['converge'] = all(node_conditions.values())
-    # Save new pathways
-    network['pathways'] = pathways['checked']
-    # Impose all the pathways in the network
-    for node in network['nodes']:
-        # Activators
-        for pathway in network['pathways'][node]['activators']:
-            network['network'][node] = network['network'][node] | pathway['domain']
-        # Inhibitors
-        for pathway in network['pathways'][node]['inhibitors']:
-            network['network'][node] = network['network'][node] - pathway['domain']
+    # Assess condition of max iterations. Only the converging networks
+    # are of interest
+    if all(node_conditions.values()):
+        # Save new pathways
+        network['pathways'] = pathways['checked']
+        # Impose all the pathways in the network
+        for node in network['nodes']:
+            # Activators
+            for pathway in network['pathways'][node]['activators']:
+                network['network'][node] = network['network'][node] | pathway['domain']
+            # Inhibitors
+            for pathway in network['pathways'][node]['inhibitors']:
+                network['network'][node] = network['network'][node] - pathway['domain']
+        # Return the result
+        return network
 
+
+def minterms2bnet(variables, minterms):
+    """
+    DESCRIPTION:
+    A function to obtain the function expression from the minterms in boolnet format.
+    It is supposed that all the nodes are in alphabetical order. Important, this 
+    function only returns the SOP without the name of the function, what is at the 
+    left side of the comma.
+    :param nodes: [tuple] the function variables.
+    :param minterms: [frozenset] the minterms to build the expression.
+    :return: [str] the function expression in boolnet format.
+    """
+    if not minterms:
+        return '0'
+    qm = QuineMcCluskey(use_xor=False)
+    simplified_minterms = qm.simplify([int(term, 2) for term in minterms])
+    simplified_expression = [left_zfill(minterm.replace('-', '*'), len(variables)) for minterm in simplified_minterms]
+    # Pass the expression to boolnet format
+    n_variables = range(len(variables))
+    bnet_expression = ' | '.join([
+        '&'.join([variables[i] if int(minterm[i]) else '!' + variables[i] for i in n_variables if minterm[i] != '*'])
+        for minterm in simplified_expression
+    ])
+    return bnet_expression
+
+
+def network_formatter(network, min_attractors=2, max_attractors=4):
+    """
+    DESCRIPTION:
+    A function to compute the attractors and format a given network to prepare it for 
+    the storage.
+    :param network: [dict] the boolean network whose attractors are going to be 
+    computed.
+    :param min/max_attractors: [int] a filtering parameters. The only networks of interest
+    are those with a number of attractors within the limits.
+    :return: [dict] the boolean network with the attractors stored. 
+    """
+    # Write every net function in BoolNet format
+    network['network'] = {
+        node: f"{node}, {minterms2bnet(network['nodes'], network['network'][node])}" 
+        for node in network['nodes']
+    }
+    # Obtain the state transition graph
+    primes = bnet2primes('\n'.join(network['network'].keys()))
+    stg = primes2stg(primes, "asynchronous")
+    # Obtain the attractors
+    steady, cyclic = compute_attractors_tarjan(stg)
+    network['attractors'] = {'steady': steady, 'cyclic': cyclic}
+    # Return only the attractor condition is met
+    if min_attractors <= len(steady + cyclic) or len(steady + cyclic) <= max_attractors:
+        # Obtain the initial expression
+        network['pre_network'] = {
+            node: f"{node}, {minterms2bnet(network['nodes'], network['pre_network'][node])}" 
+            for node in network['nodes']
+        }
+        # Simplify both initial and final expressions
+        # Delete not needed variables
+        del network['max_iterations']
+        del network['graph_space']
+        del network['nodes']
+        # Return
+        return network
+
+
+def filter_boolean_networks(boolean_networks, attractors=None, n_attractors=None, partial=False):
+    """
+    DESCRIPTION:
+    A function to filter the boolean networks according to different 
+    criteria based on the attractors.
+    :param boolean_networks: [list] the boolean networks to filter.
+    :param attractors: [dict] the attractors that we want the networks
+    to show. Format: {'steady': [...], 'cyclic': [...]}
+    :param n_attractors: [int] the number of attractors we want the
+    networks to show, steady + cyclic.
+    :param partial: [bool] a flag to indicate if it is valid with showing
+    just one of the attractors and a maximum of n_attractors, but less is
+    permitted.
+    :return: [list] the boolean networks that meet the criteria.
+    """
+    # Kernels
+    def by_attractor(network):
+        """
+        DESCRIPTION:
+        A function to filter by attractor. It is returned true only if
+        the network has the attractors specified in attractors.
+        :param network: [dict] the boolean network to filter.
+        :return: [bool] value to indicate if the network meet the 
+        criterium.
+        """
+        # Obtain all the attractors from the network
+        network_attractors = network['attractors']['steady'] +\
+            network['attractors']['cyclic']
+        # If partial, look only for one attractor.
+        if partial:
+            condition = any([attractor in network_attractors 
+                for attractor in attractors])
+        else:
+            condition = all([attractor in network_attractors 
+                for attractor in attractors])
+        return condition
+
+    def by_n_attractor(network):
+        """
+        DESCRIPTION:
+        A function to filter by the number of attractors specified.
+        :param network: [dict] the boolean network to filter.
+        :return: [bool] value to indicate if the network meet the 
+        criterium.
+        """
+        # Obtain the number of attractors in the network
+        n_network_attractors = len(network['attractors']['steady'] +\
+            network['attractors']['cyclic'])
+        # If partial, look only for networks that at most have the 
+        # specified number of attractors
+        condition = (n_network_attractors <= n_attractors 
+            if partial else n_network_attractors == n_attractors)
+        return condition
+
+    # Filtering
+    if attractors is not None:
+        boolean_networks = list(filter(by_attractor, boolean_networks))
+    if n_attractors is not None:
+        boolean_networks = list(filter(by_n_attractor, boolean_networks))
+    return boolean_networks

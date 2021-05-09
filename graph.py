@@ -11,10 +11,7 @@ from sympy import symbols
 import tqdm
 from uuid import uuid1
 from ncbf_utils import ncbf_generator
-from bn_utils import conflicts_solver
-# Classes taken from: https://github.com/zhcHoward/Kmap
-from Kmap.Kmap import Minterms
-from Kmap.utils import Term
+from bn_utils import conflicts_solver, network_formatter
 from pytictoc import TicToc
 
 
@@ -50,7 +47,8 @@ class Graph:
             for key in activators.keys()}
         self.inhibitors = {key: tuple(sorted(inhibitors[key])) 
             for key in inhibitors.keys()}
-        self.searched_attractors = attractors
+        self.min_attractors = 1
+        self.max_attractors = 4
         self.n_simulations = n_simulations
         self.n_nodes = len(nodes)
         self.multiprocess = multiprocess
@@ -240,7 +238,7 @@ class Graph:
         # Format the networks and store
         self.boolean_networks = list(map(boolean_network_serializer, boolean_networks))
     
-    def solve_conflicts(self):
+    def solve_conflicts(self, batch_size=20000):
         """
         DESCRIPTION:
         A method to solve all the conflicts in the obtained boolean functions. No
@@ -248,59 +246,38 @@ class Graph:
         modified. Therefore, we create a new function that will be applied through
         a list comprehension to every boolean function.
         """
+        # Measure the time taken in the inference
+        t = TicToc()
+        t.tic()
         # Solve the conflicts of every network
         if self.multiprocess:
-            # Multiprocess solution
-            with Pool(self.used_cores) as p:
-                # Launch the inference for every network
-                boolean_networks = self.boolean_networks
-                p.map(conflicts_solver, boolean_networks)
-            print()
+            # Multiprocess inference
+            with Pool(self.used_cores) as pool:
+                self.boolean_networks = pool.map(conflicts_solver, self.boolean_networks)
         else:
-            # Single process solution
-            list(map(conflicts_solver, self.boolean_networks))
-    
-    def filter_boolean_networks(self):
+            # Single-process inference
+            self.boolean_networks = list(map(conflicts_solver, self.boolean_networks))
+        t.toc('Computation time: ')
+
+    def format_network(self):
         """
         DESCRIPTION:
-        The method that implements all the criteria for the network filtering. It
-        stores in the attribute filtered_boolean_networks the results. The original
-        networks are preserved in the Graph object. All the filters are one after 
-        another, and they are controlled by a series of if statements.
+        A method to compute all the information from the resulting networks. The 
+        the networks are modified although they are referenced with the attribute converging
+        networks.
         """
-        # Helper functions
-        def attractor_kernel(network):
-            """
-            DESCRIPTION:
-            The function to filter the networks by attractor.
-            :param network: [dict] the function to test.
-            :return: [bool] the result of the comparison.
-            """
-            attractor_conditions = [False] * len(self.searched_attractors)
-            node_conditions = [False] * self.n_nodes
-            # Assess every attractor
-            for i in range(len(self.searched_attractors)):
-                # Assess every node
-                attractor = self.searched_attractors[i]
-                for j in range(len(attractor)):
-                    activator = bool(int(attractor[j]))
-                    if activator:
-                        node_conditions[j] = attractor in network['network'][self.nodes[j]]
-                    else:
-                        node_conditions[j] = attractor in (self.graph_space - network['network'][self.nodes[j]])
-                attractor_conditions[i] = all(node_conditions)
-            return (network, sum(attractor_conditions))
-
-        # Filters
-        # Converging networks
-        converging_networks = list(filter(lambda x: x['converge'], self.boolean_networks))
-        # # By attractor
-        # networks_with_n_matched_attractors = map(attractor_kernel, self.boolean_networks)
-        # by_attractor = {i: list(filter(lambda x: x[1] == i)) for i in range(len(self.searched_attractors) + 1)}
-        print()
-
-        
-
-
-
-    
+        # Measure the time taken to compute the information
+        t = TicToc()
+        t.tic()
+        # Delete Nones
+        self.boolean_networks = list(filter(lambda net: net is not None, self.boolean_networks))
+        # Compute the network information with PyBoolNet
+        print('Computing network information')
+        if self.multiprocess:
+            # Multiprocess
+            with Pool(self.used_cores) as pool:
+                self.boolean_networks = pool.map(network_formatter, self.boolean_networks)
+        else:
+            # Single-process
+            self.boolean_networks = list(map(network_formatter, self.boolean_networks))
+        t.toc('Computation time: ')
