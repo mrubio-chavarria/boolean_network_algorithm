@@ -3,6 +3,8 @@
 # Libraries
 import numpy as np
 import itertools
+from string import ascii_letters, digits
+from random import choice
 
 
 def ncbf_recursive(group1, group2, n_elements, path=[]):
@@ -73,16 +75,22 @@ def ncbf_obtain_domain(structure, info, space, first=False):
         return space
     else:
         # Recursive case
-        # Check for layers with several nodes
-        if len(structure[0]) == 1:
-            domain_current_layer = space - info[structure[0]][0]
-        else:
-            domain_current_layer = set().union(*[space - info[node][0] for node in structure[0]])
-        domain_downwards_layers = ncbf_obtain_domain(structure[1::], info, space)
-        domain = domain_current_layer & domain_downwards_layers
-        domain = space - domain if (first and info[structure[0][0]][1]) else domain
-        return frozenset(domain)
-
+        # Compute the terms in this layer
+        current_layer = structure[0]
+        layer_domain = space
+        for factor in current_layer:
+            factor_domain = space - info[factor][0]
+            layer_domain = layer_domain & factor_domain
+        # Compute the terms in downward layers
+        downward_domain = ncbf_obtain_domain(structure[1::], info, space)
+        layer_domain = layer_domain & downward_domain
+        layer_domain = space - layer_domain
+        # Check for the canalised value of the outter layer
+        if first:
+            if not info[structure[0][0]][1]:
+                layer_domain = space - layer_domain
+        return layer_domain
+        
 
 def ncbf_generator(activators, inhibitors, space):
     """
@@ -127,6 +135,36 @@ def ncbf_generator(activators, inhibitors, space):
         # Replace the contradictory inhibitors by the modified ones
         inhibitors = non_contradictory_inhibitors + modified_inhibitors
         inhibitor_nodes = inhibitor_nodes - contradictory_nodes | modified_nodes
+    # Modify the repeated nodes to build the NCBF
+    available_variables = set(ascii_letters + digits) - inhibitor_nodes - activator_nodes
+    # Activators
+    antecedents = []
+    repeated_activators = []
+    for i in range(len(activators)):
+        if activators[i]['antecedent'] not in antecedents:
+            antecedents.append(activators[i]['antecedent'])
+        else:
+            repeated_activators.append(activators[i])
+    for repeated in repeated_activators:
+        new_symbol = choice(list(available_variables))
+        available_variables = available_variables - set(new_symbol)
+        repeated['antecedent'] = new_symbol
+        activator_nodes = activator_nodes | set(new_symbol)
+    # Inhibitors
+    antecedents = []
+    repeated_inhibitors = []
+    for i in range(len(inhibitors)):
+        if inhibitors[i]['antecedent'] not in antecedents:
+            antecedents.append(inhibitors[i]['antecedent'])
+        else:
+            repeated_inhibitors.append(inhibitors[i])
+    for repeated in repeated_inhibitors:
+        new_symbol = choice(list(available_variables))
+        available_variables = available_variables - set(new_symbol)
+        repeated['antecedent'] = new_symbol
+        inhibitor_nodes = inhibitor_nodes | set(new_symbol)
+    if repeated_inhibitors or repeated_activators:
+        print()
     # Execute the inference algorithm
     activator_possibilities = [itertools.combinations(activator_nodes, i + 1)
         for i in range(len(activator_nodes))]
@@ -143,4 +181,6 @@ def ncbf_generator(activators, inhibitors, space):
         for pathway in activators + inhibitors}
     # Obtain the domain of every NCBF and return
     # CHECK THIS FUNCTION
-    return [ncbf_obtain_domain(ncbf, antecedent_info, space, first=True) for ncbf in ncbfs]
+    domains = [ncbf_obtain_domain(ncbf, antecedent_info, space, first=True) 
+        for ncbf in ncbfs]
+    return domains

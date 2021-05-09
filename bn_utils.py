@@ -187,8 +187,6 @@ def conflicts_solver(network):
             except NoSolutionException:
                 # Case in which a pathway could not be solved. There is no solution
                 return None
-            except:
-                print()
             node_conditions[node] = not solution_pathways
             # Introduce the new pathways with the previous ones
             pathways['non_checked'] = {node: {

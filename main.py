@@ -2,7 +2,7 @@
 
 # Libraries
 import json
-import os
+import os, shutil
 import pickle
 from datetime import datetime
 from pytictoc import TicToc
@@ -17,7 +17,10 @@ def main():
     Main method, the guideline to execute the inference.
     """
     # Assess if it is needed to load a previous session
-    load_session = True
+    load_session = False
+    # Assess if the networks are going to be checked for 
+    # repeated
+    delete_repeated = False
     if not load_session:
         # Infer a new graph
         # Read problem information
@@ -49,6 +52,23 @@ def main():
         boolean_networks = [pickle.load(open(sessions_folder + file, 'rb'))
             for file in os.listdir(sessions_folder)]
         boolean_networks = [it for sb in boolean_networks for it in sb]
+        # Delete repeated
+        if delete_repeated:
+            # Take only those network that are not repeated
+            expressions = []
+            non_repeated_networks = []
+            for boolean_network in boolean_networks:
+                expression = ''.join(sorted(boolean_network['network'].values(), key=lambda x: x[0]))
+                if expression not in expressions:
+                    expressions.append(expression)
+                    non_repeated_networks.append(boolean_network)
+            # Delete the pickle files of all the networks
+            shutil.rmtree(sessions_folder)
+            os.mkdir(sessions_folder)
+            # Store the filtered networks in one pickle file
+            filename = 'networks/networks_' + '_'.join(str(datetime.now()).split(' ')) + '.pickle'
+            with open(filename, 'wb') as file:
+                pickle.dump(non_repeated_networks, file)
     # Analysis over the graph
     print('Filter the resulting networks')
     # Parameters to filter 
