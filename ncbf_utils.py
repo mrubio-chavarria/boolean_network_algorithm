@@ -163,8 +163,6 @@ def ncbf_generator(activators, inhibitors, space):
         available_variables = available_variables - set(new_symbol)
         repeated['antecedent'] = new_symbol
         inhibitor_nodes = inhibitor_nodes | set(new_symbol)
-    if repeated_inhibitors or repeated_activators:
-        print()
     # Execute the inference algorithm
     activator_possibilities = [itertools.combinations(activator_nodes, i + 1)
         for i in range(len(activator_nodes))]
@@ -175,12 +173,10 @@ def ncbf_generator(activators, inhibitors, space):
     n_elements = len(list(activator_nodes | inhibitor_nodes))
     ncbfs_1 = ncbf_recursive(activator_possibilities, inhibitor_possibilities, n_elements)
     ncbfs_2 = ncbf_recursive(inhibitor_possibilities, activator_possibilities, n_elements)
-    ncbfs = ncbfs_1 + ncbfs_2
+    ncbfs = ncbfs_1 if not activator_nodes or not inhibitor_nodes else ncbfs_1 + ncbfs_2
     # Create relationship between antecedent and pathway
     antecedent_info = {pathway['antecedent']: (pathway['domain'], pathway['activator'])
         for pathway in activators + inhibitors}
     # Obtain the domain of every NCBF and return
-    # CHECK THIS FUNCTION
-    domains = [ncbf_obtain_domain(ncbf, antecedent_info, space, first=True) 
-        for ncbf in ncbfs]
+    domains = [ncbf_obtain_domain(ncbf, antecedent_info, space, first=True) for ncbf in ncbfs]
     return domains
