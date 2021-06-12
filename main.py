@@ -4,6 +4,7 @@
 import json
 import os, shutil
 import pickle
+from pytictoc import TicToc
 from datetime import datetime
 from pytictoc import TicToc
 from graph import Graph
@@ -16,15 +17,17 @@ def main():
     DESCRIPTION:
     Main method, the guideline to execute the inference.
     """
+     # Read problem information
+    data = json.load(open('data.json'))
     # Assess if it is needed to load a previous session
-    load_session = False
+    load_session = data['load_session']
+    del data['load_session']
     # Assess if the networks are going to be checked for 
     # repeated
-    delete_repeated = False
+    delete_repeated = data['delete_repeated']
+    del data['delete_repeated']
     if not load_session:
         # Infer a new graph
-        # Read problem information
-        data = json.load(open('data.json'))
         # Create the object graph
         print('Create the graph and generate all the networks')
         graph = Graph(**data)
@@ -40,10 +43,15 @@ def main():
         graph.format_network()
         # Store the resulting networks
         filename = 'networks/networks_' + '_'.join(str(datetime.now()).split(' ')) + '.pickle'
+        print(f'Storing networks in: {filename}')
+        t = TicToc()
+        t.tic()
         with open(filename, 'wb') as file:
             pickle.dump(graph.boolean_networks, file)
         # Prepare for the filtering
         boolean_networks = graph.boolean_networks
+        t.toc('Computation time: ')
+        print('Networks stored')
     else:
         # Load networks from a previous session (graph)
         print('Loading selected session')
@@ -65,14 +73,15 @@ def main():
             # Delete the pickle files of all the networks
             shutil.rmtree(sessions_folder)
             os.mkdir(sessions_folder)
-            # Store the filtered networks in one pickle file
+            # Keep the non repeated and store them
+            boolean_networks = non_repeated_networks
             filename = 'networks/networks_' + '_'.join(str(datetime.now()).split(' ')) + '.pickle'
             with open(filename, 'wb') as file:
                 pickle.dump(non_repeated_networks, file)
     # Analysis over the graph
     print('Filter the resulting networks')
     # Parameters to filter 
-    attractors = ['0000', '1111']
+    attractors = data['attractors']
     n_attractors = 16
     partial = False
     # Filtering

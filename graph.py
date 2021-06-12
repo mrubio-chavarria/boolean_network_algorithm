@@ -18,7 +18,7 @@ from pytictoc import TicToc
 class Graph:
 
     # Methods
-    def __init__(self, nodes, activators, inhibitors, attractors, n_simulations, multiprocess, n_free_cores, max_iterations):
+    def __init__(self, nodes, activators, inhibitors, attractors, n_simulations, multiprocess, n_free_cores, max_iterations, algorithm):
         """
         DESCRIPTION:
         The constructor of the Graph object. All the network inference
@@ -39,6 +39,8 @@ class Graph:
         computer capacity wants the user to let free.
         :param max_iterations: [int] maximum number of iterations around the 
         nodes to solve the conflicts in every given network.
+        :param algorithm: [str] code to describe the algorithm used to solve the
+        conflicts: new or original.
         """
         # Always, the nodes are ordered alphabetically
         self.nodes = tuple(sorted(nodes))
@@ -53,6 +55,7 @@ class Graph:
         self.multiprocess = multiprocess
         self.used_cores = cpu_count() - n_free_cores
         self.max_iterations = max_iterations
+        self.algorithm = algorithm
         # Generate all the possible minterms in a space of len(nodes) variables.
         # IMPORTANT: the node position in every term is alphabetical: A:0, B:1...
         self.graph_space = frozenset('{:0{}b}'.format(i, self.n_nodes) 
@@ -209,7 +212,9 @@ class Graph:
         - network: [dict] the mutable version with sets of the pre_network. The
         network is where the inference takes place.
         - conflicts: [list] the conflicts, in order, handled during the inference.
-        The conflicts are introduced in the list in order of appearance.   
+        The conflicts are introduced in the list in order of appearance.
+        - algorithm: [str] code to select the algorithm to use during the
+        inference, new or original.   
         """
         # Helper functions
         def boolean_network_serializer(group):
@@ -228,7 +233,8 @@ class Graph:
                 'graph_space': frozenset(self.graph_space),
                 'nodes': tuple(self.nodes),
                 # An empty field to store the conflicts during the inference
-                'conflicts': []
+                'conflicts': [],
+                'algorithm': self.algorithm
             }
 
         # Create all the groups of simulations, NCBFs and pathways
@@ -236,6 +242,7 @@ class Graph:
         boolean_networks = list(itertools.product(self.priority_matrices, self.pre_networks))
         # Format the networks and store
         self.boolean_networks = list(map(boolean_network_serializer, boolean_networks))
+        print(f'Total networks generated: {len(list(self.boolean_networks))}')
     
     def solve_conflicts(self):
         """

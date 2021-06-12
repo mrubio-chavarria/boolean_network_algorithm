@@ -150,17 +150,13 @@ def solver(activator, inhibitor, network, graph_space, checklist):
     return solution_pathways
 
 
-def conflicts_solver(network, algorithm='new'):
+def conflicts_solver(network):
     """
     DESCRIPTION:
     The function to solve the conflicts of a given network. It just modified the
     network according to the conflicts solving.
     :param network: [dict] all the information needed to compute the inference
     of a network.
-    :param algorithm: [str] parameter to indicate if the algorihtm to iterate 
-    through the nodes in the network should be the original (previous publication)
-    or the new one. The only difference is the while of new_pathways. In the new,
-    this while loop does not exist.
     """
     # Create network and pathways
     network['network'] = dict(network['pre_network'])
@@ -182,7 +178,7 @@ def conflicts_solver(network, algorithm='new'):
     iteration = 0
     node_conditions = {node: False for node in network['nodes']}
     # Set the type of algorithm
-    if algorithm is 'original':
+    if network['algorithm'] == 'original':
         while iteration < network['max_iterations']:
             # Go through all the nodes
             for node in network['nodes']:
@@ -230,7 +226,7 @@ def conflicts_solver(network, algorithm='new'):
             # Assess break condition
             if all(node_conditions.values()):
                 break
-    else:
+    elif network['algorithm'] == 'new':
         while iteration < network['max_iterations']:
             # Go through all the nodes
             for node in network['nodes']:
@@ -276,6 +272,8 @@ def conflicts_solver(network, algorithm='new'):
             # Assess break condition
             if all(node_conditions.values()):
                 break
+    else:
+        raise KeyError('Invalid algorithm selected')
     # Assess condition of max iterations. Only the converging networks
     # are of interest
     if all(node_conditions.values()):
@@ -411,8 +409,11 @@ def filter_boolean_networks(boolean_networks, attractors=None, n_attractors=None
         return condition
 
     # Filtering
+    t = TicToc()
+    t.tic()
     if attractors is not None:
         boolean_networks = list(filter(by_attractor, boolean_networks))
     if n_attractors is not None:
         boolean_networks = list(filter(by_n_attractor, boolean_networks))
+    t.toc('Computation time: ')
     return boolean_networks
