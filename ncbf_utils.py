@@ -1,10 +1,9 @@
 #!/home/mario/Projects/boolean_2/software/venv/bin/venv python
 
 # Libraries
-import numpy as np
 import itertools
-from string import ascii_letters, digits
-from random import choice
+from string import ascii_letters, digits, ascii_uppercase
+from random import choice, sample
 
 
 def ncbf_recursive(group1, group2, n_elements, path=[]):
@@ -125,10 +124,13 @@ def ncbf_generator(activators, inhibitors, space):
         for node in contradictory_nodes:
             id_modified += 1
             original_pathway = list(filter(lambda pathway: pathway['antecedent'] == node, contradictory_inhibitors))[0]
-            modified_pathway = {'antecedent': str(id_modified),
-                                'consequent': original_pathway['consequent'],
-                                'activator': False,
-                                'domain': original_pathway['domain']}
+            modified_pathway = {
+                'id': ''.join(sample(ascii_uppercase + digits, 5)),
+                'antecedent': str(id_modified),
+                'consequent': original_pathway['consequent'],
+                'activator': False,
+                'domain': original_pathway['domain']
+            }
             relation_original_modified[node] = original_pathway
             modified_inhibitors.append(modified_pathway)
             modified_nodes.add(str(id_modified))
@@ -137,6 +139,7 @@ def ncbf_generator(activators, inhibitors, space):
         inhibitor_nodes = inhibitor_nodes - contradictory_nodes | modified_nodes
     # Modify the repeated nodes to build the NCBF
     available_variables = set(ascii_letters + digits) - inhibitor_nodes - activator_nodes
+    repeated_pathways = []
     # Activators
     antecedents = []
     repeated_activators = []
@@ -148,6 +151,9 @@ def ncbf_generator(activators, inhibitors, space):
     for repeated in repeated_activators:
         new_symbol = choice(list(available_variables))
         available_variables = available_variables - set(new_symbol)
+        # Store previous value
+        repeated_pathways.append({'pathway': repeated, 'old': repeated['antecedent'], 'new': new_symbol})
+        # Substitute
         repeated['antecedent'] = new_symbol
         activator_nodes = activator_nodes | set(new_symbol)
     # Inhibitors
@@ -161,6 +167,9 @@ def ncbf_generator(activators, inhibitors, space):
     for repeated in repeated_inhibitors:
         new_symbol = choice(list(available_variables))
         available_variables = available_variables - set(new_symbol)
+        # Store previous value
+        repeated_pathways.append({'pathway': repeated, 'old': repeated['antecedent'], 'new': new_symbol})
+        # Substitute
         repeated['antecedent'] = new_symbol
         inhibitor_nodes = inhibitor_nodes | set(new_symbol)
     # Execute the inference algorithm
@@ -179,4 +188,8 @@ def ncbf_generator(activators, inhibitors, space):
         for pathway in activators + inhibitors}
     # Obtain the domain of every NCBF and return
     domains = [ncbf_obtain_domain(ncbf, antecedent_info, space, first=True) for ncbf in ncbfs]
+    # Correct the substitution of variables in repeated/redundant pathways
+    if repeated_pathways:
+        for repeated_pathway in repeated_pathways:
+            repeated_pathway['pathway']['antecedent'] = repeated_pathway['old']
     return domains

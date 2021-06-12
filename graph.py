@@ -2,8 +2,7 @@
 
 # Libraries
 import itertools
-from random import choice, sample
-from functools import partial
+from random import sample
 from multiprocessing import Pool, cpu_count
 from string import ascii_uppercase, digits
 from sympy.logic import SOPform
@@ -91,7 +90,7 @@ class Graph:
             :return: [dict] formatted pathway.
             """
             return {
-                'id': ''.join(sample(ascii_uppercase + digits, 4)),
+                'id': ''.join(sample(ascii_uppercase + digits, 5)),
                 'antecedent': antecedent,
                 'consequent': consequent,
                 'activator': bool(definition[1]),

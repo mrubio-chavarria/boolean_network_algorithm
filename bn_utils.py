@@ -106,7 +106,7 @@ def solver(activator, inhibitor, network, graph_space):
         target_nodes = [(node, bool(int(canalised_value))) for node, canalised_value in zip(network['network'].keys(), list(str(choice(simplified_minterms)))) if canalised_value != '*']
         # Generate the solution pathway
         solution_pathways = [
-            {'id': ''.join(sample(ascii_uppercase + digits, 4)),
+            {'id': ''.join(sample(ascii_uppercase + digits, 5)),
             'antecedent': inhibitor['antecedent'], 'consequent': node, 'activator': canalised_value, 'domain': psi}
             for node, canalised_value in target_nodes
         ]
@@ -126,7 +126,7 @@ def solver(activator, inhibitor, network, graph_space):
         target_nodes = [(node, bool(int(canalised_value))) for node, canalised_value in zip(network['network'].keys(), list(str(choice(simplified_minterms)))) if canalised_value != '*']
         # Generate the solution pathway
         solution_pathways = [
-            {'id': ''.join(sample(ascii_uppercase + digits, 4)),
+            {'id': ''.join(sample(ascii_uppercase + digits, 5)),
             'antecedent': activator['antecedent'], 'consequent': node, 'activator': canalised_value, 'domain': psi}
             for node, canalised_value in target_nodes
         ]
@@ -135,6 +135,8 @@ def solver(activator, inhibitor, network, graph_space):
     network['conflicts'].append(
         {'activator': stored_activator, 'inhibitor': stored_inhibitor, 'solution': str(solution_pathways), 'prioritised': prioritised}
     )
+    if not solution_pathways:
+        print()
     return solution_pathways
 
 
@@ -182,7 +184,8 @@ def conflicts_solver(network):
             # Solve all the pairs
             try: 
                 solution_pathways = [it for sb in 
-                    [solver(pair[0], pair[1], network, network['graph_space']) for pair in pair_group1 + pair_group2 + pair_group3]
+                    [solver(activator, inhibitor, network, network['graph_space']) 
+                        for activator, inhibitor  in pair_group1 + pair_group2 + pair_group3]
                     for it in sb]
             except NoSolutionException:
                 # Case in which a pathway could not be solved. There is no solution
