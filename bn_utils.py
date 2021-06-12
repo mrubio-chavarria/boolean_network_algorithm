@@ -64,7 +64,7 @@ def function_simplifier(node, nodes, n_nodes, terms, method='Quine-McCluskey'):
     return results
 
 
-def solver(activator, inhibitor, network, graph_space):
+def solver(activator, inhibitor, network, graph_space, checklist):
     """
     DESCRIPTION:
     A helper function that will just solve the conflicts between the pathways
@@ -75,6 +75,7 @@ def solver(activator, inhibitor, network, graph_space):
     conflicts.
     :param graph_space: [set] all the terms that build the mathematical space
     in which is developed.
+    :param checklist: [set] a set to check for repeated conflicts.
     :return: [list] new pathways obtained from the inference (same format as
     the others).
     """
@@ -88,7 +89,11 @@ def solver(activator, inhibitor, network, graph_space):
     inhibitor_priority = network['priority']['inhibitors'][inhibitor['antecedent']][inhibitor['consequent']]
     # Store the pathways before any modifications
     stored_activator = str(activator)
+    activator_domain = activator['domain'].copy()
+    activator_antecedent = activator['antecedent']
     stored_inhibitor = str(inhibitor)
+    inhibitor_domain = inhibitor['domain'].copy()
+    inhibitor_antecedent = inhibitor['antecedent']
     # Compare the priority of both activator and inhibitor
     if activator_priority >= inhibitor_priority:
         prioritised = 'activator'
@@ -130,23 +135,32 @@ def solver(activator, inhibitor, network, graph_space):
             'antecedent': activator['antecedent'], 'consequent': node, 'activator': canalised_value, 'domain': psi}
             for node, canalised_value in target_nodes
         ]
+    # Check for repeated conflicts
+    n_initial_conflicts = len(list(checklist))
+    checklist |= set([(activator_domain, activator_antecedent, inhibitor_domain, inhibitor_antecedent)])
+    n_final_conflicts = len(list(checklist))
+    if n_initial_conflicts == n_final_conflicts or not solution_pathways:
+        # If there are repeated conflicts or there is no new pathway, there is no solution
+        raise NoSolutionException
     # Store the conflict with its solution. Store the string
     # to keep the current state of the pathways
     network['conflicts'].append(
         {'activator': stored_activator, 'inhibitor': stored_inhibitor, 'solution': str(solution_pathways), 'prioritised': prioritised}
     )
-    if not solution_pathways:
-        print()
     return solution_pathways
 
 
-def conflicts_solver(network):
+def conflicts_solver(network, algorithm='new'):
     """
     DESCRIPTION:
     The function to solve the conflicts of a given network. It just modified the
     network according to the conflicts solving.
     :param network: [dict] all the information needed to compute the inference
     of a network.
+    :param algorithm: [str] parameter to indicate if the algorihtm to iterate 
+    through the nodes in the network should be the original (previous publication)
+    or the new one. The only difference is the while of new_pathways. In the new,
+    this while loop does not exist.
     """
     # Create network and pathways
     network['network'] = dict(network['pre_network'])
@@ -167,42 +181,101 @@ def conflicts_solver(network):
     # Iterate a maximum of times
     iteration = 0
     node_conditions = {node: False for node in network['nodes']}
-    while iteration < network['max_iterations']:
-        # Go through all the nodes
-        for node in network['nodes']:
-            # Obtain all the possible pathway pairs
-            pair_group1 = list(itertools.product(pathways['non_checked'][node]['activators'],
-                                                pathways['non_checked'][node]['inhibitors']))
-            pair_group2 = list(itertools.product(pathways['non_checked'][node]['activators'],
-                                                pathways['checked'][node]['inhibitors']))
-            pair_group3 = list(itertools.product(pathways['checked'][node]['activators'],
-                                                pathways['non_checked'][node]['inhibitors']))
-            # Change checked by non-checked
-            pathways['checked'][node]['activators'].extend(pathways['non_checked'][node]['activators'])
-            pathways['checked'][node]['inhibitors'].extend(pathways['non_checked'][node]['inhibitors'])
-            pathways['non_checked'][node] = {'activators': [], 'inhibitors': []}
-            # Solve all the pairs
-            try: 
-                solution_pathways = [it for sb in 
-                    [solver(activator, inhibitor, network, network['graph_space']) 
-                        for activator, inhibitor  in pair_group1 + pair_group2 + pair_group3]
-                    for it in sb]
-            except NoSolutionException:
-                # Case in which a pathway could not be solved. There is no solution
-                return None
-            node_conditions[node] = not solution_pathways
-            # Introduce the new pathways with the previous ones
-            pathways['non_checked'] = {node: {
-                'activators': pathways['non_checked'][node]['activators'] +
-                    list(filter(lambda pathway: (pathway['consequent'] == node) and pathway['activator'], solution_pathways)),
-                'inhibitors': pathways['non_checked'][node]['inhibitors'] +
-                    list(filter(lambda pathway: (pathway['consequent'] == node) and not pathway['activator'], solution_pathways))
-                } for node in network['nodes']}
-        # Update iteration
-        iteration += 1
-        # Assess break condition
-        if all(node_conditions.values()):
-            break
+    # Set the type of algorithm
+    if algorithm is 'original':
+        while iteration < network['max_iterations']:
+            # Go through all the nodes
+            for node in network['nodes']:
+                new_pathways = True
+                checklist = set()
+                try:
+                    while new_pathways:
+                        # Filter pathways with domain
+                        pathways['checked'][node]['activators'] = list(filter(lambda pathway: bool(pathway['domain']),
+                            pathways['checked'][node]['activators']))
+                        pathways['checked'][node]['inhibitors'] = list(filter(lambda pathway: bool(pathway['domain']),
+                            pathways['checked'][node]['inhibitors']))
+                        # Obtain all the possible pathway pairs
+                        pair_group1 = list(itertools.product(pathways['non_checked'][node]['activators'],
+                                                            pathways['non_checked'][node]['inhibitors']))
+                        pair_group2 = list(itertools.product(pathways['non_checked'][node]['activators'],
+                                                            pathways['checked'][node]['inhibitors']))
+                        pair_group3 = list(itertools.product(pathways['checked'][node]['activators'],
+                                                            pathways['non_checked'][node]['inhibitors']))
+                        # Change checked by non-checked
+                        pathways['checked'][node]['activators'].extend(pathways['non_checked'][node]['activators'])
+                        pathways['checked'][node]['inhibitors'].extend(pathways['non_checked'][node]['inhibitors'])
+                        pathways['non_checked'][node] = {'activators': [], 'inhibitors': []}
+                        # Solve all the pairs
+                        solution_pathways = [it for sb in 
+                            [solver(activator, inhibitor, network, network['graph_space'], checklist) 
+                                for activator, inhibitor  in pair_group1 + pair_group2 + pair_group3]
+                            for it in sb]
+                        # Update the presence of new pathways
+                        new_pathways = bool(solution_pathways)
+                        node_conditions[node] = not new_pathways
+                        # Introduce the new pathways with the previous ones
+                        pathways['non_checked'] = {node: {
+                            # Consider only with domain
+                            'activators': pathways['non_checked'][node]['activators'] +
+                                list(filter(lambda pathway: (pathway['consequent'] == node) and pathway['activator'], solution_pathways)),
+                            'inhibitors': pathways['non_checked'][node]['inhibitors'] +
+                                list(filter(lambda pathway: (pathway['consequent'] == node) and not pathway['activator'], solution_pathways))
+                            } for node in network['nodes']}
+                except NoSolutionException:
+                    # Case in which a pathway could not be solved. There is no solution
+                    return None
+            # Update iteration
+            iteration += 1
+            # Assess break condition
+            if all(node_conditions.values()):
+                break
+    else:
+        while iteration < network['max_iterations']:
+            # Go through all the nodes
+            for node in network['nodes']:
+                new_pathways = True
+                checklist = set()
+                try:
+                    # Filter pathways with domain
+                    pathways['checked'][node]['activators'] = list(filter(lambda pathway: bool(pathway['domain']),
+                        pathways['checked'][node]['activators']))
+                    pathways['checked'][node]['inhibitors'] = list(filter(lambda pathway: bool(pathway['domain']),
+                        pathways['checked'][node]['inhibitors']))
+                    # Obtain all the possible pathway pairs
+                    pair_group1 = list(itertools.product(pathways['non_checked'][node]['activators'],
+                                                        pathways['non_checked'][node]['inhibitors']))
+                    pair_group2 = list(itertools.product(pathways['non_checked'][node]['activators'],
+                                                        pathways['checked'][node]['inhibitors']))
+                    pair_group3 = list(itertools.product(pathways['checked'][node]['activators'],
+                                                        pathways['non_checked'][node]['inhibitors']))
+                    # Change checked by non-checked
+                    pathways['checked'][node]['activators'].extend(pathways['non_checked'][node]['activators'])
+                    pathways['checked'][node]['inhibitors'].extend(pathways['non_checked'][node]['inhibitors'])
+                    pathways['non_checked'][node] = {'activators': [], 'inhibitors': []}
+                    # Solve all the pairs
+                    solution_pathways = [it for sb in 
+                        [solver(activator, inhibitor, network, network['graph_space'], checklist) 
+                            for activator, inhibitor  in pair_group1 + pair_group2 + pair_group3]
+                        for it in sb]
+                    # Update the presence of new pathways
+                    new_pathways = bool(solution_pathways)
+                    node_conditions[node] = not new_pathways
+                    # Introduce the new pathways with the previous ones
+                    pathways['non_checked'] = {node: {
+                        'activators': pathways['non_checked'][node]['activators'] +
+                            list(filter(lambda pathway: (pathway['consequent'] == node) and pathway['activator'], solution_pathways)),
+                        'inhibitors': pathways['non_checked'][node]['inhibitors'] +
+                            list(filter(lambda pathway: (pathway['consequent'] == node) and not pathway['activator'], solution_pathways))
+                        } for node in network['nodes']}
+                except NoSolutionException:
+                    # Case in which a pathway could not be solved. There is no solution
+                    return None
+            # Update iteration
+            iteration += 1
+            # Assess break condition
+            if all(node_conditions.values()):
+                break
     # Assess condition of max iterations. Only the converging networks
     # are of interest
     if all(node_conditions.values()):

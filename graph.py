@@ -237,7 +237,7 @@ class Graph:
         # Format the networks and store
         self.boolean_networks = list(map(boolean_network_serializer, boolean_networks))
     
-    def solve_conflicts(self, batch_size=20000):
+    def solve_conflicts(self):
         """
         DESCRIPTION:
         A method to solve all the conflicts in the obtained boolean functions. No
@@ -252,9 +252,11 @@ class Graph:
         if self.multiprocess:
             # Multiprocess inference
             with Pool(self.used_cores) as pool:
+                # By default, the algorithm to iterate through the ndoes is the original
                 self.boolean_networks = pool.map(conflicts_solver, self.boolean_networks)
         else:
             # Single-process inference
+            # By default, the algorithm to iterate through the ndoes is the original
             self.boolean_networks = list(map(conflicts_solver, self.boolean_networks))
         t.toc('Computation time: ')
 
