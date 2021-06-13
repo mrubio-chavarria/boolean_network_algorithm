@@ -13,8 +13,13 @@
         "D": ["C"]
     },
     "attractors": ["0000", "1111"],
-    "n_simulations": 5,
-    "multiprocess": true,
+    "n_attractors": 16,
+    "n_simulations": 1,
+    "multiprocess": false,
     "n_free_cores": 3,
-    "max_iterations": 4  
+    "max_iterations": 100,
+    "algorithm": "original",
+    "load_session": true,
+    "delete_repeated": true,
+    "partial": true
 }
