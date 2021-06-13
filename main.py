@@ -20,14 +20,17 @@ def main():
     DESCRIPTION:
     Main method, the guideline to execute the inference.
     """
-     # Read problem information
-    data = json.load(open('data.json'))
-    # Assess if it is needed to load a previous session
-    load_session = data['load_session']
+    # Read problem information
+    data = json.load(open('data.json'))  # Load all the information
+    load_session = data['load_session']  # Assess if it is needed to load a previous session
     del data['load_session']
-    # Assess if the networks are going to be checked for 
-    # repeated
-    delete_repeated = data['delete_repeated']
+    partial = data['partial']  # Parameter to relax the conditions during network filtering
+    del data['partial']
+    attractors = data['attractors']  # Parameters attractors searched in the networks
+    del data['attractors']
+    n_attractors = data['n_attractors']  # Total number of attractors searched in the networks
+    del data['n_attractors']
+    delete_repeated = data['delete_repeated']  # assess whether to elete repeated networks or not
     del data['delete_repeated']
     if not load_session:
         # Infer a new graph
@@ -87,15 +90,11 @@ def main():
                 pickle.dump(non_repeated_networks, file)
     # Analysis over the graph
     # # Filtering
-    # # CHECK
-    # print('Filter the resulting networks')
-    # attractors = data['attractors']
-    # n_attractors = 16
-    # partial = False
-    # boolean_networks = filter_boolean_networks(boolean_networks,
-    #     attractors=attractors,
-    #     n_attractors=n_attractors,
-    #     partial=partial)
+    print('Filter the resulting networks')
+    boolean_networks = filter_boolean_networks(boolean_networks,
+                                                attractors=attractors,
+                                                n_attractors=n_attractors,
+                                                partial=partial)
     # Print a random network
     example_filename = 'example.json'
     with open(example_filename, 'w') as file:

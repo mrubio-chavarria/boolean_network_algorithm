@@ -18,7 +18,7 @@ from pytictoc import TicToc
 class Graph:
 
     # Methods
-    def __init__(self, nodes, activators, inhibitors, attractors, n_simulations, multiprocess, n_free_cores, max_iterations, algorithm):
+    def __init__(self, nodes, activators, inhibitors, n_simulations, multiprocess, n_free_cores, max_iterations, algorithm):
         """
         DESCRIPTION:
         The constructor of the Graph object. All the network inference
@@ -28,8 +28,6 @@ class Graph:
         :param activators: [dict] dict in which the keys are the nodes, and the
         values their activators.
         :param inhibitors: [dict] the same but for the inhibitors.
-        :param attractors: [list] the attractors (strings) that the searched 
-        boolean networks should manifest.
         :param n_simulations: [int] the number of times that every boolean 
         network should be infered. It is exactly the number of priority matrices
         computed.
