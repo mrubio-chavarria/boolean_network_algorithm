@@ -211,13 +211,13 @@ def conflicts_solver(network):
                         new_pathways = bool(solution_pathways)
                         node_conditions[node] = not new_pathways
                         # Introduce the new pathways with the previous ones
-                        pathways['non_checked'] = {node: {
+                        pathways['non_checked'] = {network_node: {
                             # Consider only with domain
-                            'activators': pathways['non_checked'][node]['activators'] +
-                                list(filter(lambda pathway: (pathway['consequent'] == node) and pathway['activator'], solution_pathways)),
-                            'inhibitors': pathways['non_checked'][node]['inhibitors'] +
-                                list(filter(lambda pathway: (pathway['consequent'] == node) and not pathway['activator'], solution_pathways))
-                            } for node in network['nodes']}
+                            'activators': pathways['non_checked'][network_node]['activators'] +
+                                list(filter(lambda pathway: (pathway['consequent'] == network_node) and pathway['activator'], solution_pathways)),
+                            'inhibitors': pathways['non_checked'][network_node]['inhibitors'] +
+                                list(filter(lambda pathway: (pathway['consequent'] == network_node) and not pathway['activator'], solution_pathways))
+                            } for network_node in network['nodes']}
                 except NoSolutionException:
                     # Case in which a pathway could not be solved. There is no solution
                     return None
@@ -350,6 +350,7 @@ def network_formatter(network, min_attractors=2, max_attractors=4):
         del network['max_iterations']
         del network['graph_space']
         del network['nodes']
+        del network['priority']
         # Return
         return network
 

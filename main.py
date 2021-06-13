@@ -4,11 +4,14 @@
 import json
 import os, shutil
 import pickle
+import json
+from random import choice
 from pytictoc import TicToc
 from datetime import datetime
 from pytictoc import TicToc
 from graph import Graph
 from bn_utils import filter_boolean_networks
+from serializers import Serializer
 
 
 # Functions
@@ -47,7 +50,11 @@ def main():
         t = TicToc()
         t.tic()
         with open(filename, 'wb') as file:
-            pickle.dump(graph.boolean_networks, file)
+            # Transform the network in a format that can be written in 
+            # a JSON file
+            serialized_networks = [Serializer(net).get_serialized_network() 
+                for net in graph.boolean_networks]
+            pickle.dump(serialized_networks, file)
         # Prepare for the filtering
         boolean_networks = graph.boolean_networks
         t.toc('Computation time: ')
@@ -79,17 +86,21 @@ def main():
             with open(filename, 'wb') as file:
                 pickle.dump(non_repeated_networks, file)
     # Analysis over the graph
-    print('Filter the resulting networks')
-    # Parameters to filter 
-    attractors = data['attractors']
-    n_attractors = 16
-    partial = False
-    # Filtering
-    boolean_networks = filter_boolean_networks(boolean_networks,
-        attractors=attractors,
-        n_attractors=n_attractors,
-        partial=partial)
-    print()
+    # # Filtering
+    # # CHECK
+    # print('Filter the resulting networks')
+    # attractors = data['attractors']
+    # n_attractors = 16
+    # partial = False
+    # boolean_networks = filter_boolean_networks(boolean_networks,
+    #     attractors=attractors,
+    #     n_attractors=n_attractors,
+    #     partial=partial)
+    # Print a random network
+    example_filename = 'example.json'
+    with open(example_filename, 'w') as file:
+        json.dump(choice(boolean_networks), file)
+
 
 
 if __name__ == "__main__":
