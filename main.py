@@ -21,37 +21,43 @@ def main():
     Main method, the guideline to execute the inference.
     """
     # Read problem information
-    data = json.load(open('data.json'))  # Load all the information
-    load_session = data['load_session']  # Assess if it is needed to load a previous session
+    data = json.load(open('data.json'))
+    load_session = data['load_session']        # Assess if it is needed to load a previous session
     del data['load_session']
-    partial = data['partial']  # Parameter to relax the conditions during network filtering
+    partial = data['partial']                  # Parameter to relax the conditions during network filtering
     del data['partial']
-    attractors = data['attractors']  # Parameters attractors searched in the networks
+    attractors = data['attractors']            # Parameters attractors searched in the networks
     del data['attractors']
-    n_attractors = data['n_attractors']  # Total number of attractors searched in the networks
+    n_attractors = data['n_attractors']        # Total number of attractors searched in the networks
     del data['n_attractors']
     delete_repeated = data['delete_repeated']  # assess whether to elete repeated networks or not
     del data['delete_repeated']
+    # Check networks directory
+    if not os.path.exists('networks'):
+        os.makedirs('networks')
     if not load_session:
         # Infer a new graph
         # Create the object graph
         print('Create the graph and generate all the networks')
         graph = Graph(**data)
+        t = TicToc()
+        t.tic()
         graph.obtain_pathways_from_graph()
         graph.generate_priority_matrices()
         graph.generate_NCBFs()
         graph.generate_boolean_networks()
+        t.toc('Computation time: ', restart=True)
         # Perform inference (it takes time)
         print('Solve the conflicts of all the networks')
         graph.solve_conflicts()
+        t.toc('Computation time: ', restart=True)
         # Compute relevant features of the converging networks
         # and filter by number of desired attractors (total)
         graph.format_network()
+        t.toc('Computation time: ', restart=True)
         # Store the resulting networks
         filename = 'networks/networks_' + '_'.join(str(datetime.now()).split(' ')) + '.pickle'
         print(f'Storing networks in: {filename}')
-        t = TicToc()
-        t.tic()
         with open(filename, 'wb') as file:
             # Transform the network in a format that can be written in 
             # a JSON file

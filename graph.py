@@ -251,8 +251,6 @@ class Graph:
         a list comprehension to every boolean function.
         """
         # Measure the time taken in the inference
-        t = TicToc()
-        t.tic()
         # Solve the conflicts of every network
         if self.multiprocess:
             # Multiprocess inference
@@ -263,7 +261,6 @@ class Graph:
             # Single-process inference
             # By default, the algorithm to iterate through the ndoes is the original
             self.boolean_networks = list(map(conflicts_solver, self.boolean_networks))
-        t.toc('Computation time: ')
 
     def format_network(self):
         """
@@ -273,8 +270,6 @@ class Graph:
         networks.
         """
         # Measure the time taken to compute the information
-        t = TicToc()
-        t.tic()
         # Delete Nones
         self.boolean_networks = list(filter(lambda net: net is not None, self.boolean_networks))
         # Compute the network information with PyBoolNet
@@ -286,4 +281,3 @@ class Graph:
         else:
             # Single-process
             self.boolean_networks = list(map(network_formatter, self.boolean_networks))
-        t.toc('Computation time: ')
