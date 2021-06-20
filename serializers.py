@@ -47,4 +47,8 @@ class Serializer:
 
 
     def get_serialized_network(self):
+        """
+        DESCRIPTION:
+        A method to return the network once it has been serialised.
+        """
         return self.network

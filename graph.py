@@ -10,7 +10,7 @@ from sympy import symbols
 import tqdm
 from uuid import uuid1
 from ncbf_utils import ncbf_generator
-from bn_utils import conflicts_solver, network_formatter
+from bn_utils import conflicts_solver, network_formatter, prefilter_by_attractor
 from pytictoc import TicToc
 
 
@@ -18,7 +18,7 @@ from pytictoc import TicToc
 class Graph:
 
     # Methods
-    def __init__(self, nodes, activators, inhibitors, n_simulations, multiprocess, n_free_cores, max_iterations, algorithm):
+    def __init__(self, nodes, activators, inhibitors, n_simulations, multiprocess, n_free_cores, max_iterations, algorithm, attractors):
         """
         DESCRIPTION:
         The constructor of the Graph object. All the network inference
@@ -39,6 +39,8 @@ class Graph:
         nodes to solve the conflicts in every given network.
         :param algorithm: [str] code to describe the algorithm used to solve the
         conflicts: new or original.
+        :param attractors: [list] a list with the searched attractors in str 
+        format.
         """
         # Always, the nodes are ordered alphabetically
         self.nodes = tuple(sorted(nodes))
@@ -54,6 +56,7 @@ class Graph:
         self.used_cores = cpu_count() - n_free_cores
         self.max_iterations = max_iterations
         self.algorithm = algorithm
+        self.attractors = attractors
         # Generate all the possible minterms in a space of len(nodes) variables.
         # IMPORTANT: the node position in every term is alphabetical: A:0, B:1...
         self.graph_space = frozenset('{:0{}b}'.format(i, self.n_nodes) 
@@ -281,3 +284,14 @@ class Graph:
         else:
             # Single-process
             self.boolean_networks = list(map(network_formatter, self.boolean_networks))
+
+    def prefilter(self):
+        """
+        DESCRIPTION:
+        A method to select only the networks among which the searched attractors are present.
+        A cheap prefiltering before computing the attractors with the Tarjan algorithm and 
+        PyBoolNet.
+        """
+        # Helper functions
+        self.boolean_networks = list(prefilter_by_attractor(self.boolean_networks, self.attractors))
+        print(f'Total networks after prefiltering: {len(self.boolean_networks)}')

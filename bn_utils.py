@@ -328,6 +328,7 @@ def network_formatter(network, min_attractors=2, max_attractors=4):
     :return: [dict] the boolean network with the attractors stored. 
     """
     # Write every net function in BoolNet format
+    network['network_terms'] = network['network'].copy()
     network['network'] = {
         node: f"{node}, {minterms2bnet(network['nodes'], network['network'][node])}" 
         for node in network['nodes']
@@ -410,11 +411,39 @@ def filter_boolean_networks(boolean_networks, attractors=None, n_attractors=None
         return condition
 
     # Filtering
-    t = TicToc()
-    t.tic()
     if attractors is not None:
         boolean_networks = list(filter(by_attractor, boolean_networks))
     if n_attractors is not None:
         boolean_networks = list(filter(by_n_attractor, boolean_networks))
-    t.toc('Computation time: ')
     return boolean_networks
+
+
+def prefilter_by_attractor(networks, attractors):
+    """
+    DESCRIPTION:
+    A function to filter boolean networks based on if the hold a certain
+    attractors or not.
+    """
+    # Helper functions
+    def check_node(node_index, nodes, attractor, network):
+        node = nodes[node_index]
+        # Check if the attractor value is 1 or 0
+        if int(attractor[node_index]):
+            result = attractor in network['network'][node]
+        else:
+            result = attractor not in network['network'][node]
+        return result
+
+    # Iterate over every network
+    nodes = list(networks[0]['network'].keys())
+    for network in networks:
+        # Network might be a None resulting from unsuccessful conflict solving
+        if network is not None:
+            attractor_conditions = []
+            # Check every attractor
+            for attractor in attractors:
+                node_conditions = [check_node(node_index, nodes, attractor, network) 
+                    for node_index in range(len(nodes))]
+                attractor_conditions.append(all(node_conditions))
+            if all(attractor_conditions):
+                yield network

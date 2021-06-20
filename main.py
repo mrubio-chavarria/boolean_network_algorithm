@@ -27,7 +27,6 @@ def main():
     partial = data['partial']                  # Parameter to relax the conditions during network filtering
     del data['partial']
     attractors = data['attractors']            # Parameters attractors searched in the networks
-    del data['attractors']
     n_attractors = data['n_attractors']        # Total number of attractors searched in the networks
     del data['n_attractors']
     delete_repeated = data['delete_repeated']  # assess whether to elete repeated networks or not
@@ -35,13 +34,14 @@ def main():
     # Check networks directory
     if not os.path.exists('networks'):
         os.makedirs('networks')
+    # Measure the time taken in every step
+    t = TicToc()
+    t.tic()
     if not load_session:
         # Infer a new graph
         # Create the object graph
         print('Create the graph and generate all the networks')
         graph = Graph(**data)
-        t = TicToc()
-        t.tic()
         graph.obtain_pathways_from_graph()
         graph.generate_priority_matrices()
         graph.generate_NCBFs()
@@ -50,6 +50,10 @@ def main():
         # Perform inference (it takes time)
         print('Solve the conflicts of all the networks')
         graph.solve_conflicts()
+        t.toc('Computation time: ', restart=True)
+        # Select only does networks that has the desired attractors
+        print('Select only related networks')
+        graph.prefilter()
         t.toc('Computation time: ', restart=True)
         # Compute relevant features of the converging networks
         # and filter by number of desired attractors (total)
@@ -72,7 +76,6 @@ def main():
         # Load networks from a previous session (graph)
         print('Loading selected session')
         sessions_folder = 'networks/'
-        # Load the networks
         boolean_networks = [pickle.load(open(sessions_folder + file, 'rb'))
             for file in os.listdir(sessions_folder)]
         boolean_networks = [it for sb in boolean_networks for it in sb]
@@ -101,6 +104,7 @@ def main():
                                                 attractors=attractors,
                                                 n_attractors=n_attractors,
                                                 partial=partial)
+    t.toc('Computation time: ')
     # Print a random network
     example_filename = 'example.json'
     with open(example_filename, 'w') as file:
