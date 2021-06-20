@@ -334,8 +334,8 @@ def network_formatter(network, min_attractors=2, max_attractors=4):
         for node in network['nodes']
     }
     # Obtain the state transition graph
-    primes = bnet2primes('\n'.join(network['network'].keys()))
-    stg = primes2stg(primes, "asynchronous")
+    primes = bnet2primes('\n'.join(network['network'].values()))
+    stg = primes2stg(primes, "synchronous")
     # Obtain the attractors
     steady, cyclic = compute_attractors_tarjan(stg)
     network['attractors'] = {'steady': steady, 'cyclic': cyclic}
