@@ -4,6 +4,7 @@
 import itertools
 from random import choice, sample
 from string import ascii_uppercase, digits
+from networkx.algorithms.components.connected import node_connected_component
 from sympy import SOPform
 from PyBoolNet.Attractors import compute_attractors_tarjan
 from PyBoolNet.FileExchange import bnet2primes
@@ -81,8 +82,11 @@ def solver(activator, inhibitor, network, graph_space, checklist):
     """
     # Detect the conflicting region (psi)
     psi = activator['domain'] & inhibitor['domain']
-    # If there is no conflicting region no pathways are returned
+    # If there is no conflicting region 
     if not psi:
+        # Apply both pathways to the network
+        network['network'][activator['consequent']] = (network['network'][activator['consequent']] | activator['domain']) - inhibitor['domain']
+        # And return no conflict
         return []
     # Obtain the priority
     activator_priority = network['priority']['activators'][activator['antecedent']][activator['consequent']]
@@ -198,6 +202,18 @@ def conflicts_solver(network):
                                                             pathways['checked'][node]['inhibitors']))
                         pair_group3 = list(itertools.product(pathways['checked'][node]['activators'],
                                                             pathways['non_checked'][node]['inhibitors']))
+                        # Apply pathways when there are no pairs, when there is pairs they are applied downwards
+                        new_activators = bool(pathways['non_checked'][node]['activators'])
+                        new_inhibitors = bool(pathways['non_checked'][node]['inhibitors'])
+                        if not (pair_group1 + pair_group2 + pair_group3) and (new_activators or new_inhibitors):
+                            non_applied_pathways = pathways['non_checked'][node]['activators'] + pathways['non_checked'][node]['inhibitors']
+                            for nap in non_applied_pathways:  # nap stands for non applied pathway, used for brevity
+                                if nap['activator']:
+                                    # Activator
+                                    network['network'][nap['consequent']] = network['network'][nap['consequent']] | nap['domain']
+                                else:
+                                    # Inhibitor
+                                    network['network'][nap['consequent']] = network['network'][nap['consequent']] - nap['domain'] 
                         # Change checked by non-checked
                         pathways['checked'][node]['activators'].extend(pathways['non_checked'][node]['activators'])
                         pathways['checked'][node]['inhibitors'].extend(pathways['non_checked'][node]['inhibitors'])
@@ -209,7 +225,6 @@ def conflicts_solver(network):
                             for it in sb]
                         # Update the presence of new pathways
                         new_pathways = bool(solution_pathways)
-                        node_conditions[node] = not new_pathways
                         # Introduce the new pathways with the previous ones
                         pathways['non_checked'] = {network_node: {
                             # Consider only with domain
@@ -218,6 +233,11 @@ def conflicts_solver(network):
                             'inhibitors': pathways['non_checked'][network_node]['inhibitors'] +
                                 list(filter(lambda pathway: (pathway['consequent'] == network_node) and not pathway['activator'], solution_pathways))
                             } for network_node in network['nodes']}
+                        # Update the node conditions for the outer loop
+                        for network_node in network['nodes']:
+                            new_node_pathways = pathways['non_checked'][network_node]['activators'] + \
+                                pathways['non_checked'][network_node]['inhibitors']
+                            node_conditions[network_node] = not new_node_pathways
                 except NoSolutionException:
                     # Case in which a pathway could not be solved. There is no solution
                     return None
@@ -245,6 +265,18 @@ def conflicts_solver(network):
                                                         pathways['checked'][node]['inhibitors']))
                     pair_group3 = list(itertools.product(pathways['checked'][node]['activators'],
                                                         pathways['non_checked'][node]['inhibitors']))
+                    # Apply pathways when there are no pairs, when there is pairs they are applied downwards
+                    new_activators = bool(pathways['non_checked'][node]['activators'])
+                    new_inhibitors = bool(pathways['non_checked'][node]['inhibitors'])
+                    if not (pair_group1 + pair_group2 + pair_group3) and (new_activators or new_inhibitors):
+                        non_applied_pathways = pathways['non_checked'][node]['activators'] + pathways['non_checked'][node]['inhibitors']
+                        for nap in non_applied_pathways:  # nap stands for non applied pathway, used for brevity
+                            if nap['activator']:
+                                # Activator
+                                network['network'][nap['consequent']] = network['network'][nap['consequent']] | nap['domain']
+                            else:
+                                # Inhibitor
+                                network['network'][nap['consequent']] = network['network'][nap['consequent']] - nap['domain']
                     # Change checked by non-checked
                     pathways['checked'][node]['activators'].extend(pathways['non_checked'][node]['activators'])
                     pathways['checked'][node]['inhibitors'].extend(pathways['non_checked'][node]['inhibitors'])
@@ -264,6 +296,11 @@ def conflicts_solver(network):
                         'inhibitors': pathways['non_checked'][node]['inhibitors'] +
                             list(filter(lambda pathway: (pathway['consequent'] == node) and not pathway['activator'], solution_pathways))
                         } for node in network['nodes']}
+                    # Update the node conditions for the outer loop
+                    for network_node in network['nodes']:
+                        new_node_pathways = pathways['non_checked'][network_node]['activators'] + \
+                            pathways['non_checked'][network_node]['inhibitors']
+                        node_conditions[network_node] = not new_node_pathways
                 except NoSolutionException:
                     # Case in which a pathway could not be solved. There is no solution
                     return None
