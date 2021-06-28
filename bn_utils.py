@@ -227,7 +227,6 @@ def conflicts_solver(network):
                         new_pathways = bool(solution_pathways)
                         # Introduce the new pathways with the previous ones
                         pathways['non_checked'] = {network_node: {
-                            # Consider only with domain
                             'activators': pathways['non_checked'][network_node]['activators'] +
                                 list(filter(lambda pathway: (pathway['consequent'] == network_node) and pathway['activator'], solution_pathways)),
                             'inhibitors': pathways['non_checked'][network_node]['inhibitors'] +
@@ -247,6 +246,7 @@ def conflicts_solver(network):
             if all(node_conditions.values()):
                 break
     elif network['algorithm'] == 'new':
+        # CHECK THESE ALGORITHM WITH THE NEW MODIFICATIONS
         while iteration < network['max_iterations']:
             # Go through all the nodes
             for node in network['nodes']:

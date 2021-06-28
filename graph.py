@@ -258,11 +258,11 @@ class Graph:
         if self.multiprocess:
             # Multiprocess inference
             with Pool(self.used_cores) as pool:
-                # By default, the algorithm to iterate through the ndoes is the original
+                # By default, the algorithm to iterate through the nodes is the original
                 self.boolean_networks = pool.map(conflicts_solver, self.boolean_networks)
         else:
             # Single-process inference
-            # By default, the algorithm to iterate through the ndoes is the original
+            # By default, the algorithm to iterate through the nodes is the original
             self.boolean_networks = list(map(conflicts_solver, self.boolean_networks))
 
     def format_network(self):
@@ -292,6 +292,6 @@ class Graph:
         A cheap prefiltering before computing the attractors with the Tarjan algorithm and 
         PyBoolNet.
         """
-        # Helper functions
+        self.boolean_networks = list(filter(lambda network: network is not None, self.boolean_networks))
         self.boolean_networks = list(prefilter_by_attractor(self.boolean_networks, self.attractors))
         print(f'Total networks after prefiltering: {len(self.boolean_networks)}')
