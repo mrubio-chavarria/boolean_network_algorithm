@@ -25,7 +25,6 @@ def main():
     load_session = data['load_session']        # Assess if it is needed to load a previous session
     del data['load_session']
     partial = data['partial']                  # Parameter to relax the conditions during network filtering
-    del data['partial']
     attractors = data['attractors']            # Parameters attractors searched in the networks
     n_attractors = data['n_attractors']        # Total number of attractors searched in the networks
     del data['n_attractors']
@@ -108,7 +107,8 @@ def main():
     # Print a random network
     example_filename = 'example.json'
     with open(example_filename, 'w') as file:
-        json.dump(choice(boolean_networks), file)
+        selected_network = choice(boolean_networks)
+        json.dump(selected_network, file)
 
 
 

@@ -44,6 +44,8 @@ class Serializer:
             conflict['inhibitor'] = ast.literal_eval(conflict['inhibitor'])
             conflict['solution'] = conflict['solution'].replace('frozenset', '').replace('({', '[').replace('})', ']')
             conflict['solution'] = ast.literal_eval(conflict['solution'])
+        # Convert the set of cyclic attractors to tuple
+        self.network['attractors']['cyclic'] = [tuple(attractor) for attractor in self.network['attractors']['cyclic']]
 
 
     def get_serialized_network(self):

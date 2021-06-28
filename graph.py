@@ -5,20 +5,15 @@ import itertools
 from random import sample
 from multiprocessing import Pool, cpu_count
 from string import ascii_uppercase, digits
-from sympy.logic import SOPform
-from sympy import symbols
-import tqdm
-from uuid import uuid1
 from ncbf_utils import ncbf_generator
 from bn_utils import conflicts_solver, network_formatter, prefilter_by_attractor
-from pytictoc import TicToc
 
 
 # Classes
 class Graph:
 
     # Methods
-    def __init__(self, nodes, activators, inhibitors, n_simulations, multiprocess, n_free_cores, max_iterations, algorithm, attractors):
+    def __init__(self, nodes, activators, inhibitors, n_simulations, multiprocess, n_free_cores, max_iterations, algorithm, attractors, partial):
         """
         DESCRIPTION:
         The constructor of the Graph object. All the network inference
@@ -41,6 +36,8 @@ class Graph:
         conflicts: new or original.
         :param attractors: [list] a list with the searched attractors in str 
         format.
+        :param partial: [bool] an indication to relax the conditions imposed in 
+        the prefiltering.
         """
         # Always, the nodes are ordered alphabetically
         self.nodes = tuple(sorted(nodes))
@@ -57,6 +54,7 @@ class Graph:
         self.max_iterations = max_iterations
         self.algorithm = algorithm
         self.attractors = attractors
+        self.partial = partial
         # Generate all the possible minterms in a space of len(nodes) variables.
         # IMPORTANT: the node position in every term is alphabetical: A:0, B:1...
         self.graph_space = frozenset('{:0{}b}'.format(i, self.n_nodes) 
@@ -293,5 +291,5 @@ class Graph:
         PyBoolNet.
         """
         self.boolean_networks = list(filter(lambda network: network is not None, self.boolean_networks))
-        self.boolean_networks = list(prefilter_by_attractor(self.boolean_networks, self.attractors))
+        self.boolean_networks = list(prefilter_by_attractor(self.boolean_networks, self.attractors, self.partial))
         print(f'Total networks after prefiltering: {len(self.boolean_networks)}')

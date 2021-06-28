@@ -4,13 +4,11 @@
 import itertools
 from random import choice, sample
 from string import ascii_uppercase, digits
-from networkx.algorithms.components.connected import node_connected_component
 from sympy import SOPform
 from PyBoolNet.Attractors import compute_attractors_tarjan
 from PyBoolNet.FileExchange import bnet2primes
 from PyBoolNet.StateTransitionGraphs import primes2stg
 from quine_mccluskey.qm import QuineMcCluskey
-from pytictoc import TicToc
 from exceptions import NoSolutionException
 
 
@@ -389,6 +387,7 @@ def network_formatter(network, min_attractors=2, max_attractors=4):
         del network['graph_space']
         del network['nodes']
         del network['priority']
+        del network['network_terms']
         # Return
         return network
 
@@ -455,11 +454,18 @@ def filter_boolean_networks(boolean_networks, attractors=None, n_attractors=None
     return boolean_networks
 
 
-def prefilter_by_attractor(networks, attractors):
+def prefilter_by_attractor(networks, attractors, partial=True):
     """
     DESCRIPTION:
-    A function to filter boolean networks based on if the hold a certain
+    A function to filter boolean networks based on if they hold certain
     attractors or not.
+    :param networks: [list] boolean networks (dict) to filter based on
+    their attractors.
+    :param attractors: [list] attractors (str) to filter the networks.
+    :param partial: [bool]flag to indicate if the condition should be 
+    relaxed. If partial == True, then it will be enough for the network
+    to show just one attractor from the list to pass the filter. If False
+    the network will need to show all the attractors in the list.
     """
     # Helper functions
     def check_node(node_index, nodes, attractor, network):
@@ -482,5 +488,5 @@ def prefilter_by_attractor(networks, attractors):
                 node_conditions = [check_node(node_index, nodes, attractor, network) 
                     for node_index in range(len(nodes))]
                 attractor_conditions.append(all(node_conditions))
-            if all(attractor_conditions):
+            if all(attractor_conditions) or partial and any(attractor_conditions):
                 yield network
