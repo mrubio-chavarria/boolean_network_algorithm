@@ -59,6 +59,9 @@ class Graph:
         # IMPORTANT: the node position in every term is alphabetical: A:0, B:1...
         self.graph_space = frozenset('{:0{}b}'.format(i, self.n_nodes) 
             for i in range(2 ** self.n_nodes))
+        # Check for input nodes
+        self.input_nodes = [node for node in self.nodes 
+            if not self.activators[node] and not self.inhibitors[node]]
     
     def obtain_pathways_from_graph(self):
         """
@@ -100,7 +103,7 @@ class Graph:
                     lambda term: term[self.nodes.index(antecedent)] == str(definition[0]),
                     self.graph_space))}
         
-        def pathway_manager(pathway_group):
+        def pathway_manager(pathway_group, input_pathways):
             """
             DESCRIPTION:
             Helper function to organise the pathways first by node and after
@@ -108,17 +111,22 @@ class Graph:
             a canalised value of 1 and vice versa.
             :param pathway_group: [tuple] the two lists of activators and 
             inhibitors.
+            :param input_pathways: [dict] pathways of the input nodes. They are 
+            the same for every group.
             :return: [dict] the pathways grouped by node and activators/inhibitors.
             """
+            # Format the pathways
             pathways = [it for sb in pathway_group for it in sb]
             pathways = {node: {'activators': list(filter(lambda pathway: (pathway['consequent'] == node) and pathway['activator'], pathways)),
                                 'inhibitors': list(filter(lambda pathway: (pathway['consequent'] == node) and not pathway['activator'], pathways))}
                 for node in self.nodes}
+            # Introduce the input pathways
+            [pathways.update({node: input_pathways[node]}) for node in input_pathways.keys()]
             return pathways
         
         # Create all the pathways with both canalising/canalised pairs
-        activator_pathways = [[None for activator in self.activators[node]] for node in self.nodes]
-        inhibitor_pathways = [[None for inhibitor in self.inhibitors[node]] for node in self.nodes]
+        activator_pathways = [[None] * len(self.activators[node]) for node in self.nodes]
+        inhibitor_pathways = [[None] * len(self.inhibitors[node]) for node in self.nodes]
         i = 0
         for node in self.nodes:
             j = 0
@@ -141,8 +149,15 @@ class Graph:
         inhibitor_pathways = [it for sb in inhibitor_pathways for it in sb]
         inhibitor_pathways = itertools.product(*inhibitor_pathways)
         pathways = itertools.product(activator_pathways, inhibitor_pathways)
+        # Obtain the pathways of the inputs (from and to themselves)
+        input_pathways = {node: [] for node in self.input_nodes}
+        for node in self.input_nodes:
+            input_pathways[node] = {
+                'activators': [pathway_serializer(node, node, (1, 1))],
+                'inhibitors': [pathway_serializer(node, node, (0, 0))]
+            }
         # Organise every group by node first and by activator/inhibitor second
-        self.pathway_groups = [pathway_manager(group) for group in pathways]
+        self.pathway_groups = [pathway_manager(group, input_pathways) for group in pathways]
 
     def generate_priority_matrices(self):
         """
@@ -195,6 +210,7 @@ class Graph:
         # Format all the NCBF groups conveniently: (pathway group position, NCBF
         # network in dict). 
         self.pre_networks = [it for sb in [ncbf_formatter(total_ncbf[i], i) for i in range(len(total_ncbf))] for it in sb]
+        print()
 
     def generate_boolean_networks(self):
         """
