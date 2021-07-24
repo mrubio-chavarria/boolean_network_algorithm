@@ -41,9 +41,7 @@ def function_simplifier(node, nodes, n_nodes, terms, method='Quine-McCluskey'):
     if not terms:
         raise NoSolutionException()
     if method == 'Quine-McCluskey':
-        # Handle the general case
         qm = QuineMcCluskey(use_xor=False)
-        terms = frozenset({'0000'})
         minterms = [int(term, 2) for term in terms]
         # Special cases
         if minterms == [0]:
@@ -52,7 +50,6 @@ def function_simplifier(node, nodes, n_nodes, terms, method='Quine-McCluskey'):
         else:
             results = [left_zfill(minterm.replace('-', '*'), n_nodes) for minterm
                 in qm.simplify(minterms)]
-        print()
     elif method == 'SymPy':
         terms = [[int(digit) for digit in list(term)] for term in terms]
         simplified = str(SOPform(nodes, terms))
@@ -352,8 +349,13 @@ def minterms2bnet(variables, minterms):
     :param minterms: [frozenset] the minterms to build the expression.
     :return: [str] the function expression in boolnet format.
     """
+    # When the function is always false
     if not minterms:
         return '0'
+    # Check when the minterms are the whole space
+    if len(minterms) == 2 ** len(variables):
+        return '1'
+    # Generañ case
     qm = QuineMcCluskey(use_xor=False)
     simplified_minterms = qm.simplify([int(term, 2) for term in minterms])
     simplified_expression = [left_zfill(minterm.replace('-', '*'), len(variables)) for minterm in simplified_minterms]

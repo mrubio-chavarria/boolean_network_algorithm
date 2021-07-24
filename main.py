@@ -97,7 +97,7 @@ def main():
             with open(filename, 'wb') as file:
                 pickle.dump(non_repeated_networks, file)
     # Analysis over the graph
-    # # Filtering
+    # Filtering
     print('Filter the resulting networks')
     boolean_networks = filter_boolean_networks(boolean_networks,
                                                 attractors=attractors,
