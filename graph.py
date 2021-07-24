@@ -60,8 +60,8 @@ class Graph:
         self.graph_space = frozenset('{:0{}b}'.format(i, self.n_nodes) 
             for i in range(2 ** self.n_nodes))
         # Check for input nodes
-        self.input_nodes = [node for node in self.nodes 
-            if not self.activators[node] and not self.inhibitors[node]]
+        self.input_nodes = tuple([node for node in self.nodes 
+            if not self.activators[node] and not self.inhibitors[node]])
     
     def obtain_pathways_from_graph(self):
         """
@@ -210,7 +210,6 @@ class Graph:
         # Format all the NCBF groups conveniently: (pathway group position, NCBF
         # network in dict). 
         self.pre_networks = [it for sb in [ncbf_formatter(total_ncbf[i], i) for i in range(len(total_ncbf))] for it in sb]
-        print()
 
     def generate_boolean_networks(self):
         """
@@ -249,7 +248,8 @@ class Graph:
                 'nodes': tuple(self.nodes),
                 # An empty field to store the conflicts during the inference
                 'conflicts': [],
-                'algorithm': self.algorithm
+                'algorithm': self.algorithm,
+                'input_nodes': self.input_nodes
             }
 
         # Create all the groups of simulations, NCBFs and pathways
@@ -257,7 +257,7 @@ class Graph:
         boolean_networks = list(itertools.product(self.priority_matrices, self.pre_networks))
         # Format the networks and store
         self.boolean_networks = list(map(boolean_network_serializer, boolean_networks))
-        print(f'Total networks generated: {len(list(self.boolean_networks))}')
+        print(f'Total networks generated: {len(self.boolean_networks)}')
     
     def solve_conflicts(self):
         """

@@ -9,7 +9,7 @@ from PyBoolNet.Attractors import compute_attractors_tarjan
 from PyBoolNet.FileExchange import bnet2primes
 from PyBoolNet.StateTransitionGraphs import primes2stg
 from quine_mccluskey.qm import QuineMcCluskey
-from exceptions import NoSolutionException
+from exceptions import NoSolutionException, InputModificationException
 
 
 # Functions
@@ -101,6 +101,9 @@ def solver(activator, inhibitor, network, graph_space, checklist):
         prioritised = 'activator'
         # Prioritised: activator
         # Non prioritised: inhibitor
+        # Check whether the non-prioritised is an input
+        if inhibitor['antecedent'] in network['input_nodes']:
+            raise InputModificationException
         # Modify the non-prioritised pathway
         inhibitor['antecedent'] = ''.join(sorted(set(activator['antecedent'] + inhibitor['antecedent'])))
         inhibitor['domain'] = inhibitor['domain'] - activator['domain']
@@ -121,6 +124,9 @@ def solver(activator, inhibitor, network, graph_space, checklist):
         prioritised = 'inhibitor'
         # Prioritised: inhibitor
         # Non prioritised: activator
+        # Check whether the non-prioritised is an input
+        if activator['antecedent'] in network['input_nodes']:
+            raise InputModificationException
         # Modify the non-prioritised pathway
         activator['antecedent'] = ''.join(sorted(set(activator['antecedent'] + inhibitor['antecedent'])))
         activator['domain'] = activator['domain'] - inhibitor['domain']
@@ -235,8 +241,9 @@ def conflicts_solver(network):
                             new_node_pathways = pathways['non_checked'][network_node]['activators'] + \
                                 pathways['non_checked'][network_node]['inhibitors']
                             node_conditions[network_node] = not new_node_pathways
-                except NoSolutionException:
-                    # Case in which a pathway could not be solved. There is no solution
+                except (NoSolutionException, InputModificationException):
+                    # Case in which a pathway could not be solved or the solution requires
+                    # to modify the input. There is no solution
                     return None
             # Update iteration
             iteration += 1
