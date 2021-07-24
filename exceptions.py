@@ -14,3 +14,19 @@ class NoSolutionException(Exception):
         Constructor of the class
         """
         super().__init__('No solution found')
+
+
+class InputModificationException(Exception):
+    """
+    DESCRIPTION:
+    An exception to handle when the conflicts solving procedure 
+    demands to modify the input.
+    """
+
+    # Methods
+    def __init__(self):
+        """
+        DESCRIPTION:
+        Constructor of the class
+        """
+        super().__init__('Input modification detected')
