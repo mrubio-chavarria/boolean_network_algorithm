@@ -43,8 +43,16 @@ def function_simplifier(node, nodes, n_nodes, terms, method='Quine-McCluskey'):
     if method == 'Quine-McCluskey':
         # Handle the general case
         qm = QuineMcCluskey(use_xor=False)
-        results = [left_zfill(minterm.replace('-', '*'), n_nodes) for minterm
-            in qm.simplify([int(term, 2) for term in terms])]
+        terms = frozenset({'0000'})
+        minterms = [int(term, 2) for term in terms]
+        # Special cases
+        if minterms == [0]:
+            results = [left_zfill(str(minterm), n_nodes) for minterm in minterms]
+        # General case
+        else:
+            results = [left_zfill(minterm.replace('-', '*'), n_nodes) for minterm
+                in qm.simplify(minterms)]
+        print()
     elif method == 'SymPy':
         terms = [[int(digit) for digit in list(term)] for term in terms]
         simplified = str(SOPform(nodes, terms))
