@@ -391,8 +391,8 @@ def network_formatter(network, min_attractors=2, max_attractors=4):
     # Obtain the attractors
     steady, cyclic = compute_attractors_tarjan(stg)
     network['attractors'] = {'steady': steady, 'cyclic': cyclic}
-    # Return only the attractor condition is met
-    if min_attractors <= len(steady + cyclic) or len(steady + cyclic) <= max_attractors:
+    # Return only if the attractor condition is met
+    if min_attractors <= len(steady + cyclic) and len(steady + cyclic) <= max_attractors:
         # Obtain the initial expression
         network['pre_network'] = {
             node: f"{node}, {minterms2bnet(network['nodes'], network['pre_network'][node])}" 
