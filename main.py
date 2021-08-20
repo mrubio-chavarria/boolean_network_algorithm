@@ -26,9 +26,13 @@ def main():
     del data['load_session']
     partial = data['partial']                  # Parameter to relax the conditions during network filtering
     attractors = data['attractors']            # Parameters attractors searched in the networks
+    if attractors == "None":
+        attractors = None
     n_attractors = data['n_attractors']        # Total number of attractors searched in the networks
+    if n_attractors == "None":
+        n_attractors = None
     del data['n_attractors']
-    delete_repeated = data['delete_repeated']  # assess whether to elete repeated networks or not
+    delete_repeated = data['delete_repeated']  # Assess whether to delete repeated networks or not
     del data['delete_repeated']
     # Check networks directory
     if not os.path.exists('networks'):
@@ -96,6 +100,7 @@ def main():
             filename = 'networks/networks_' + '_'.join(str(datetime.now()).split(' ')) + '.pickle'
             with open(filename, 'wb') as file:
                 pickle.dump(non_repeated_networks, file)
+        t.toc('Computation time: ')
     # Analysis over the graph
     # Filtering
     print('Filter the resulting networks')
