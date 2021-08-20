@@ -306,6 +306,9 @@ class Graph:
         A cheap prefiltering before computing the attractors with the Tarjan algorithm and 
         PyBoolNet.
         """
-        self.boolean_networks = list(filter(lambda network: network is not None, self.boolean_networks))
-        self.boolean_networks = list(prefilter_by_attractor(self.boolean_networks, self.attractors, self.partial))
-        print(f'Total networks after prefiltering: {len(self.boolean_networks)}')
+        if self.attractors is not None:
+            self.boolean_networks = list(filter(lambda network: network is not None, self.boolean_networks))
+            self.boolean_networks = list(prefilter_by_attractor(self.boolean_networks, self.attractors, self.partial))
+            print(f'Total networks after prefiltering: {len(self.boolean_networks)}')
+        else:
+            print('No attractor-based prefiltering performed')

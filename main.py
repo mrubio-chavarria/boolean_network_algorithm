@@ -25,15 +25,19 @@ def main():
     load_session = data['load_session']        # Assess if it is needed to load a previous session
     del data['load_session']
     partial = data['partial']                  # Parameter to relax the conditions during network filtering
-    attractors = data['attractors']            # Parameters attractors searched in the networks
-    if attractors == "None":
+    data['attractors']            # Parameters attractors searched in the networks
+    if data['attractors'] == "None":
         attractors = None
+        data['attractors'] = None
     n_attractors = data['n_attractors']        # Total number of attractors searched in the networks
     if n_attractors == "None":
         n_attractors = None
     del data['n_attractors']
     delete_repeated = data['delete_repeated']  # Assess whether to delete repeated networks or not
     del data['delete_repeated']
+    if data['min_conflicts'] is not None:      # Minimum number of conflicts for the written example
+        min_conflicts = data['min_conflicts']
+    del data['min_conflicts']
     # Check networks directory
     if not os.path.exists('networks'):
         os.makedirs('networks')
@@ -112,7 +116,7 @@ def main():
     # Print a random network
     example_filename = 'example.json'
     with open(example_filename, 'w') as file:
-        selected_network = choice(boolean_networks)
+        selected_network = choice(list(filter(lambda x: len(x['conflicts']) >= min_conflicts, boolean_networks)))
         json.dump(selected_network, file)
 
 
