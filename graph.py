@@ -6,14 +6,14 @@ from random import sample
 from multiprocessing import Pool, cpu_count
 from string import ascii_uppercase, digits
 from ncbf_utils import ncbf_generator
-from bn_utils import conflicts_solver, network_formatter, prefilter_by_attractor
+from bn_utils import conflicts_solver, minterms2bnet, network_formatter, prefilter_by_attractor
 
 
 # Classes
 class Graph:
 
     # Methods
-    def __init__(self, nodes, activators, inhibitors, n_simulations, multiprocess, n_free_cores, max_iterations, algorithm, attractors, partial):
+    def __init__(self, nodes, activators, inhibitors, n_simulations, multiprocess, n_free_cores, max_iterations, algorithm, attractors, partial, **kwargs):
         """
         DESCRIPTION:
         The constructor of the Graph object. All the network inference
@@ -55,6 +55,8 @@ class Graph:
         self.algorithm = algorithm
         self.attractors = attractors
         self.partial = partial
+        self.mixed_pathways = kwargs.get("mixed_pathways", False)
+        self.pathways_index = kwargs.get("pathways_index", None)
         # Generate all the possible minterms in a space of len(nodes) variables.
         # IMPORTANT: the node position in every term is alphabetical: A:0, B:1...
         self.graph_space = frozenset('{:0{}b}'.format(i, self.n_nodes) 
@@ -199,17 +201,28 @@ class Graph:
         canalising/canalised pairs is already stored in the pathways. The NCBF
         groups are added to the Graph object.
         """
-        # Helper function
-        def ncbf_formatter(ncbf_group, pathway_group_id):
+        # Helper functions
+        # There two depending on whether the pathways groups are mixed or not for
+        # the ncbf and the conflicts strategy
+        def ncbf_formatter_standard(ncbf_group, pathway_group_id):
+            # This function assigns the ID of the pathways used to built the network
             networks = [dict(zip(self.nodes, network)) for network in itertools.product(*ncbf_group)]
             return zip([pathway_group_id] * len(networks), networks)
+
+        def ncbf_formatter_mixed_pathways(ncbf_group):
+            # This assigns the prefixed ID of pathways independently of the network
+            networks = [dict(zip(self.nodes, network)) for network in itertools.product(*ncbf_group)]
+            return zip([self.pathways_index] * len(networks), networks)
 
         # Generate by node all the NCBFs
         total_ncbf = [[ncbf_generator(group[node]['activators'], group[node]['inhibitors'], self.graph_space) 
             for node in self.nodes] for group in self.pathway_groups]
         # Format all the NCBF groups conveniently: (pathway group position, NCBF
         # network in dict). 
-        self.pre_networks = [it for sb in [ncbf_formatter(total_ncbf[i], i) for i in range(len(total_ncbf))] for it in sb]
+        if self.mixed_pathways:
+            self.pre_networks = [it for sb in [ncbf_formatter_mixed_pathways(total_ncbf[i]) for i in range(len(total_ncbf))] for it in sb]
+        else:
+            self.pre_networks = [it for sb in [ncbf_formatter_standard(total_ncbf[i], i) for i in range(len(total_ncbf))] for it in sb]
 
     def generate_boolean_networks(self):
         """
@@ -239,6 +252,12 @@ class Graph:
             of tuples. The first tuple is the priority matrices, the second are 
             the group of pathways to take and the network.
             """
+            # Calculate the expressions of the prenetwork (just for information)
+            pre_expressions = dict(zip(
+                group[1][1].keys(),
+                [minterms2bnet(list(group[1][1].keys()), group[1][1][node]) for node in group[1][1].keys()]
+            ))
+            # Build and return the formatted network
             return {
                 'priority': {'activators': group[0][0], 'inhibitors': group[0][1]},
                 'pre_pathways': pathways[group[1][0]],
@@ -246,6 +265,7 @@ class Graph:
                 'max_iterations': int(self.max_iterations),
                 'graph_space': frozenset(self.graph_space),
                 'nodes': tuple(self.nodes),
+                'pre_expressions': pre_expressions,
                 # An empty field to store the conflicts during the inference
                 'conflicts': [],
                 'algorithm': self.algorithm,
@@ -291,13 +311,14 @@ class Graph:
         self.boolean_networks = list(filter(lambda net: net is not None, self.boolean_networks))
         # Compute the network information with PyBoolNet
         print('Computing network information')
-        if self.multiprocess:
-            # Multiprocess
-            with Pool(self.used_cores) as pool:
-                self.boolean_networks = pool.map(network_formatter, self.boolean_networks)
-        else:
-            # Single-process
-            self.boolean_networks = list(map(network_formatter, self.boolean_networks))
+        if self.boolean_networks:
+            if self.multiprocess:
+                # Multiprocess
+                with Pool(self.used_cores) as pool:
+                    self.boolean_networks = pool.map(network_formatter, self.boolean_networks)
+            else:
+                # Single-process
+                self.boolean_networks = list(map(network_formatter, self.boolean_networks))
 
     def prefilter(self):
         """
@@ -308,7 +329,8 @@ class Graph:
         """
         if self.attractors is not None:
             self.boolean_networks = list(filter(lambda network: network is not None, self.boolean_networks))
-            self.boolean_networks = list(prefilter_by_attractor(self.boolean_networks, self.attractors, self.partial))
+            if self.boolean_networks:
+                self.boolean_networks = list(prefilter_by_attractor(self.boolean_networks, self.attractors, self.partial))
             print(f'Total networks after prefiltering: {len(self.boolean_networks)}')
         else:
             print('No attractor-based prefiltering performed')
