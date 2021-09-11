@@ -220,10 +220,20 @@ class Graph:
         # Format all the NCBF groups conveniently: (pathway group position, NCBF
         # network in dict). 
         if self.mixed_pathways:
-            self.pre_networks = [it for sb in [ncbf_formatter_mixed_pathways(total_ncbf[i]) for i in range(len(total_ncbf))] for it in sb]
+            pre_networks = [it for sb in [ncbf_formatter_mixed_pathways(total_ncbf[i]) for i in range(len(total_ncbf))] for it in sb]
         else:
-            self.pre_networks = [it for sb in [ncbf_formatter_standard(total_ncbf[i], i) for i in range(len(total_ncbf))] for it in sb]
-
+            pre_networks = [it for sb in [ncbf_formatter_standard(total_ncbf[i], i) for i in range(len(total_ncbf))] for it in sb]
+        # Filter the equivalent networks
+        codes = []
+        final_pre_networks = []
+        for network in pre_networks:
+            code = str(network[0]) + '||' + '&'.join(['|'.join(sorted(net)) 
+                for _, net in sorted(network[1].items(), key=lambda x: x[0])])
+            if code not in codes:
+                final_pre_networks.append(network)
+                codes.append(code) 
+        self.pre_networks = final_pre_networks
+    
     def generate_boolean_networks(self):
         """
         DESCRIPTION:
