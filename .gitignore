@@ -129,6 +129,5 @@ dmypy.json
 .pyre/
 .vscode/
 Kmap/
-main.sh
 networks/
 example.json
