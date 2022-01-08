@@ -171,7 +171,8 @@ def conflicts_solver(network):
     :param network: [dict] all the information needed to compute the inference
     of a network.
     """
-    # Create network and pathways
+    # Create network and pathways. They are copies of their precomputed analogs 
+    # to modify during the algorithm
     network['network'] = dict(network['pre_network'])
     network['pathways'] = {
         node: {
@@ -216,6 +217,7 @@ def conflicts_solver(network):
                         new_inhibitors = bool(pathways['non_checked'][node]['inhibitors'])
                         if not (pair_group1 + pair_group2 + pair_group3) and (new_activators or new_inhibitors):
                             non_applied_pathways = pathways['non_checked'][node]['activators'] + pathways['non_checked'][node]['inhibitors']
+                            # When there are no pairs, the action of each pathway is applied on the map directly
                             for nap in non_applied_pathways:  # nap stands for non applied pathway, used for brevity
                                 if nap['activator']:
                                     # Activator
@@ -223,7 +225,7 @@ def conflicts_solver(network):
                                 else:
                                     # Inhibitor
                                     network['network'][nap['consequent']] = network['network'][nap['consequent']] - nap['domain'] 
-                        # Change checked by non-checked
+                        # Add the non-checked pathways to the checked list
                         pathways['checked'][node]['activators'].extend(pathways['non_checked'][node]['activators'])
                         pathways['checked'][node]['inhibitors'].extend(pathways['non_checked'][node]['inhibitors'])
                         pathways['non_checked'][node] = {'activators': [], 'inhibitors': []}
@@ -234,14 +236,14 @@ def conflicts_solver(network):
                             for it in sb]
                         # Update the presence of new pathways
                         new_pathways = bool(solution_pathways)
-                        # Introduce the new pathways with the previous ones
+                        # Introduce the new pathways in the list of non-checked
                         pathways['non_checked'] = {network_node: {
                             'activators': pathways['non_checked'][network_node]['activators'] +
                                 list(filter(lambda pathway: (pathway['consequent'] == network_node) and pathway['activator'], solution_pathways)),
                             'inhibitors': pathways['non_checked'][network_node]['inhibitors'] +
                                 list(filter(lambda pathway: (pathway['consequent'] == network_node) and not pathway['activator'], solution_pathways))
                             } for network_node in network['nodes']}
-                        # Update the node conditions for the outer loop
+                        # Update the node conditions (for all the nodes) for the outer loop
                         for network_node in network['nodes']:
                             new_node_pathways = pathways['non_checked'][network_node]['activators'] + \
                                 pathways['non_checked'][network_node]['inhibitors']
@@ -419,9 +421,11 @@ def filter_boolean_networks(boolean_networks, attractors=None, n_attractors=None
     to show. Format: {'steady': [...], 'cyclic': [...]}
     :param n_attractors: [int] the number of attractors we want the
     networks to show, steady + cyclic.
-    :param partial: [bool] a flag to indicate if it is valid with showing
-    just one of the attractors and a maximum of n_attractors, but less is
-    permitted.
+    :param partial: [bool] if partial == True the network showing at
+    least one of the specified attractors passes the filter, also the
+    network having a number of attractors <= n_attractors. If 
+    partial == False, the network should show all the attractors and
+    have a number of attractors equal to n_attractors.
     :return: [list] the boolean networks that meet the criteria.
     """
     # Kernels
@@ -446,7 +450,7 @@ def filter_boolean_networks(boolean_networks, attractors=None, n_attractors=None
                 for attractor in attractors])
         return condition
 
-    def by_n_attractor(network):
+    def by_n_attractors(network):
         """
         DESCRIPTION:
         A function to filter by the number of attractors specified.
@@ -467,7 +471,7 @@ def filter_boolean_networks(boolean_networks, attractors=None, n_attractors=None
     if attractors is not None:
         boolean_networks = list(filter(by_attractor, boolean_networks))
     if n_attractors is not None:
-        boolean_networks = list(filter(by_n_attractor, boolean_networks))
+        boolean_networks = list(filter(by_n_attractors, boolean_networks))
     return boolean_networks
 
 
@@ -479,7 +483,7 @@ def prefilter_by_attractor(networks, attractors, partial=True):
     :param networks: [list] boolean networks (dict) to filter based on
     their attractors.
     :param attractors: [list] attractors (str) to filter the networks.
-    :param partial: [bool]flag to indicate if the condition should be 
+    :param partial: [bool] flag to indicate if the condition should be 
     relaxed. If partial == True, then it will be enough for the network
     to show just one attractor from the list to pass the filter. If False
     the network will need to show all the attractors in the list.

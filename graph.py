@@ -38,6 +38,9 @@ class Graph:
         format.
         :param partial: [bool] an indication to relax the conditions imposed in 
         the prefiltering.
+        :param mixed_pathways: [bool] a flag to indicate whether the pathways in 
+        boolean network and pathways should be mixed or not. If not, both are 
+        computed with the same pathways.
         """
         # Always, the nodes are ordered alphabetically
         self.nodes = tuple(sorted(nodes))
@@ -72,10 +75,12 @@ class Graph:
         based on the pairs of canalising/canalised values described in the 
         article. The groups are added to the Graph object. Every pathway is a 
         tuple in which the fields have the following meaning:
-        1. Antecedent: [str] the row key to obtain the priority in the 
-        matrix.
-        2. Consequent: [str] the column key to obtain the priority in the 
-        matrix.
+        1. Antecedent: [str] expression describing the cause of the effect. 
+        This field is the row value in the priority matrix used later to solve 
+        the conflicts between pathways.
+        2. Consequent: [str] expression describing the nodes that suffers the 
+        effect. This field is the column value in the priority matrix used
+        later to solve the conflicts between pathways.
         3. Activator: [bool] a flag to indicate if the pathway is an activator 
         of the consequent (True) or not (False).
         4. Domain: [set] strings that represent the minterms of the expression
@@ -164,8 +169,8 @@ class Graph:
     def generate_priority_matrices(self):
         """
         DESCRIPTION:
-        A method that adds to the Graph object the piority matrices used in the 
-        inference. There two priority matrices per simulation, one for activators
+        A method that adds to the Graph object the priority matrices used in the 
+        inference. There are two priority matrices per simulation, one for activators
         and another for inhibitors.
         """
         # Obtain all the possible node combinations
@@ -173,9 +178,12 @@ class Graph:
             for i in range(self.n_nodes)]
         combinations = sorted([''.join(it) for sb in combinations for it in sb])
         # Generate all the possible priorities
+        # We set arbitrarily all the priorities between 0 and 1000, where 0 is the
+        # lowest priority and 1000 the highest
         priorities = range(0, 1000)
         # Activators
         activator_matrices = []
+        # We generate as many priority matrices as simulations that we will perform
         for _ in range(self.n_simulations):
             # Generate the random matrices
             activator_matrices.append({
@@ -205,7 +213,7 @@ class Graph:
         # There two depending on whether the pathways groups are mixed or not for
         # the ncbf and the conflicts strategy
         def ncbf_formatter_standard(ncbf_group, pathway_group_id):
-            # This function assigns the ID of the pathways used to built the network
+            # This function assigns the ID of the pathways used to build the network
             networks = [dict(zip(self.nodes, network)) for network in itertools.product(*ncbf_group)]
             return zip([pathway_group_id] * len(networks), networks)
 
@@ -231,7 +239,8 @@ class Graph:
                 for _, net in sorted(network[1].items(), key=lambda x: x[0])])
             if code not in codes:
                 final_pre_networks.append(network)
-                codes.append(code) 
+                codes.append(code)
+        # Store NCBF networks
         self.pre_networks = final_pre_networks
     
     def generate_boolean_networks(self):

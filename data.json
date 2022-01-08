@@ -1,25 +1,27 @@
 {
-    "nodes": ["A", "B", "C", "D"],
+    "nodes": ["A", "B", "L", "M"],
     "activators": {
-        "A": ["B", "D"], 
-        "B": ["A"],
-        "C": [],
-        "D": ["B"]
+        "A": ["B", "L"], 
+        "B": ["M"],
+        "L": [],
+        "M": ["A"]
     },
     "inhibitors": {
-        "A": ["A", "D"],
-        "B": [],
-        "C": ["A"],
-        "D": ["C"]
+        "A": ["A", "B"],
+        "B": ["B"],
+        "L": [],
+        "M": ["M"]
     },
-    "attractors": ["0000", "1111"],
-    "n_attractors": 16,
+    "min_conflicts": 1,
+    "attractors": "None",
+    "n_attractors": "None",
     "n_simulations": 1,
     "multiprocess": false,
     "n_free_cores": 3,
     "max_iterations": 100,
     "algorithm": "original",
-    "load_session": false,
-    "delete_repeated": true,
-    "partial": true
+    "load_stored_networks": false,
+    "delete_repeated": false,
+    "partial": true,
+    "mixed_pathways": false
 }
