@@ -14,6 +14,7 @@ from pytictoc import TicToc
 from datetime import datetime
 from pytictoc import TicToc
 from graph import Graph
+from bn_utils import minterms2bnet
 # from bn_utils import filter_boolean_networks
 # from serializers import Serializer
 
@@ -50,9 +51,24 @@ def main():
     graph.generate_NCBFs()
 
     # Print result example
+    # Example
+    print("Example")
     print("Pairs: ", graph.pathway_groups[0])
     print("--------")
     print("Network: ", graph.pre_networks[0])
+
+    # Print networks to files
+    networks_folder = "example_NCBF/printed_networks"
+    networks = [
+        "\n".join([f"{node}, " + minterms2bnet(graph.nodes, network[1][node]) for node in graph.nodes])
+        for network in graph.pre_networks
+    ]
+    i = 0
+    os.system(f"mkdir -p {networks_folder}")  # <------- ESTE COMANDO CREA LA CARPETA DENTRO DE example_NCBF. EN WINDOWS ES MEJOR COMENTAR Y CREAR LA CARPETA A MANO
+    for network in networks:
+        with open(networks_folder + f"/network_{i}.txt", "w") as file:
+            file.write(network)
+        i += 1
 
 
 
