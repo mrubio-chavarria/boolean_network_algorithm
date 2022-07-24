@@ -235,8 +235,8 @@ class Graph:
         codes = []
         final_pre_networks = []
         for network in pre_networks:
-            code = str(network[0]) + '||' + '&'.join(['|'.join(sorted(net)) 
-                for _, net in sorted(network[1].items(), key=lambda x: x[0])])
+            # code = str(network[0]) + '$$' + '&'.join(['|'.join(sorted(net)) for _, net in sorted(network[1].items(), key=lambda x: x[0])])
+            code = '&'.join(['|'.join(sorted(net)) for _, net in sorted(network[1].items(), key=lambda x: x[0])])
             if code not in codes:
                 final_pre_networks.append(network)
                 codes.append(code)
