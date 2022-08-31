@@ -49,19 +49,14 @@ def main():
     graph.generate_priority_matrices()
     # Generate all the possible networks made of NCBFs for each group of pathways
     graph.generate_NCBFs()
-
-    # Print result example
-    # Example
-    print("Example")
-    print("Pairs: ", graph.pathway_groups[0])
-    print("--------")
-    print("Network: ", graph.pre_networks[0])
-
+    # Filter networks 
+    graph.boolean_networks = [{"network": net[1]} for net in graph.pre_networks]
+    graph.prefilter()
     # Print networks to files
     networks_folder = "example_NCBF/printed_networks"
     networks = [
-        "\n".join([f"{node}, " + minterms2bnet(graph.nodes, network[1][node]) for node in graph.nodes])
-        for network in graph.pre_networks
+        "\n".join([f"{node}, " + minterms2bnet(graph.nodes, network["network"][node]) for node in graph.nodes])
+        for network in graph.boolean_networks
     ]
     i = 0
     os.system(f"mkdir -p {networks_folder}")  # <------- ESTE COMANDO CREA LA CARPETA DENTRO DE example_NCBF. EN WINDOWS ES MEJOR COMENTAR Y CREAR LA CARPETA A MANO

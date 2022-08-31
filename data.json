@@ -13,15 +13,15 @@
         "M": ["M"]
     },
     "min_conflicts": 1,
-    "attractors": "None",
+    "attractors": ["1101"],
     "n_attractors": "None",
-    "n_simulations": 1,
+    "n_simulations": 5,
     "multiprocess": false,
     "n_free_cores": 3,
     "max_iterations": 100,
     "algorithm": "original",
     "load_stored_networks": false,
     "delete_repeated": false,
-    "partial": true,
+    "partial": false,
     "mixed_pathways": false
 }
