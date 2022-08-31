@@ -13,7 +13,7 @@
         "M": ["M"]
     },
     "min_conflicts": 1,
-    "attractors": "None",
+    "attractors": ["1101"],
     "n_attractors": "None",
     "n_simulations": 5,
     "multiprocess": false,
@@ -22,6 +22,6 @@
     "algorithm": "original",
     "load_stored_networks": false,
     "delete_repeated": false,
-    "partial": true,
+    "partial": false,
     "mixed_pathways": false
 }
