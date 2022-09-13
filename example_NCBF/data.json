@@ -1,19 +1,21 @@
 {
-    "nodes": ["A", "B", "L", "M"],
+    "nodes": ["A", "B", "D", "E", "I"],
     "activators": {
-        "A": ["B", "L"], 
-        "B": ["M"],
-        "L": [],
-        "M": ["A"]
+        "A": [], 
+        "B": ["I"],
+        "D": [],
+        "E": ["B", "E"],
+        "I": []
     },
     "inhibitors": {
-        "A": ["A", "B"],
-        "B": ["B"],
-        "L": [],
-        "M": ["M"]
+        "A": ["B"], 
+        "B": ["A", "B"],
+        "D": ["B", "E"],
+        "E": ["D"],
+        "I": []
     },
     "min_conflicts": 1,
-    "attractors": ["1101"],
+    "attractors": ["10100", "01011"],
     "n_attractors": "None",
     "n_simulations": 5,
     "multiprocess": false,

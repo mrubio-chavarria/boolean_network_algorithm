@@ -56,7 +56,7 @@ class Graph:
         self.used_cores = cpu_count() - n_free_cores
         self.max_iterations = max_iterations
         self.algorithm = algorithm
-        self.attractors = attractors
+        self.attractors = None if attractors == "None" else attractors
         self.partial = partial
         self.mixed_pathways = kwargs.get("mixed_pathways", False)
         self.pathways_index = kwargs.get("pathways_index", None)
@@ -346,7 +346,7 @@ class Graph:
         A cheap prefiltering before computing the attractors with the Tarjan algorithm and 
         PyBoolNet.
         """
-        if self.attractors is not None:
+        if (self.attractors is not None) and (self.attractors != []):
             self.boolean_networks = list(filter(lambda network: network is not None, self.boolean_networks))
             if self.boolean_networks:
                 self.boolean_networks = list(prefilter_by_attractor(self.boolean_networks, self.attractors, self.partial))

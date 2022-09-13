@@ -28,7 +28,7 @@ def main():
     """
 
     # Read inference information in the data.json file
-    data = json.load(open('data.json'))
+    data = json.load(open('example_NCBF/data.json'))
     # Delete data that are no longer required
     del data['load_stored_networks']
     del data['n_attractors']
